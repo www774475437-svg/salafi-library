@@ -6,7 +6,9 @@ volumes and section. The texts themselves are read from «تراث» inside the 
 If «تراث» cannot be reached, the catalog already in the repository is kept."""
 import json
 import sys
+import threading
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -28,16 +30,34 @@ SCHOLARS = [
 ]
 
 
-def get(url, tries=4):
+_lock = threading.Lock()
+_next = [0.0]
+GAP = 0.25  # at most ~4 requests a second, so «تراث» does not refuse us
+
+
+def _wait_turn():
+    with _lock:
+        now = time.time()
+        t = max(now, _next[0])
+        _next[0] = t + GAP
+    time.sleep(max(0, t - now))
+
+
+def get(url, tries=8):
     for i in range(tries):
+        _wait_turn()
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
                 return json.loads(r.read().decode("utf-8"))
-        except Exception as e:  # noqa: BLE001
+        except urllib.error.HTTPError as e:
+            if i == tries - 1 or e.code not in (429, 500, 502, 503, 504):
+                raise
+            wait = int(e.headers.get("Retry-After") or 0) or (5 + i * 5)
+            time.sleep(min(wait, 60))
+        except Exception:  # noqa: BLE001
             if i == tries - 1:
                 raise
-            print("retry", url, e)
-            time.sleep(2 + i * 3)
+            time.sleep(3 + i * 3)
 
 
 def book_meta(bid):
@@ -83,7 +103,7 @@ def main():
             out.append({"key": key, "name": name, "short": short, "honorific": hon, "death": death, "authorId": 0, "books": []})
             continue
         ids = list(dict.fromkeys(a.get("books") or []))
-        with ThreadPoolExecutor(8) as ex:
+        with ThreadPoolExecutor(3) as ex:
             books = [b for b in ex.map(book_meta, ids) if b]
         for b in books:
             b["catName"] = cats.get(b["cat"], "")
