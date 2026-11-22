@@ -84,7 +84,8 @@ class BookFiles {
 
   static Future<int> size(int id) async {
     final f = await _book(id);
-    return await f.exists() ? f.length() : 0;
+    if (!await f.exists()) return 0;
+    return f.length();
   }
 
   /// Searches a downloaded book without internet. Each result: pg, vol, page, snip.
