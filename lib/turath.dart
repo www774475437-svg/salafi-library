@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'files/files.dart';
 import 'store.dart';
+import 'text.dart' show norm;
 import 'ui.dart' show Ar;
 import 'update.dart' show siteUrl;
 
@@ -18,11 +19,44 @@ class Heading {
 }
 
 /// A book's table of contents and the printed page of every page.
+class PdfFile {
+  final String url;
+  final String label; // the volume it holds
+  const PdfFile(this.url, this.label);
+}
+
 class BookIndex {
   final List<Heading> headings;
   final List<String> pageMap; // "vol,page" for pg 1..n
   final int vols;
-  const BookIndex(this.headings, this.pageMap, this.vols);
+  final List<PdfFile> pdfs; // the printed book, scanned
+  const BookIndex(this.headings, this.pageMap, this.vols, [this.pdfs = const []]);
+
+  static List<PdfFile> _pdfs(Object? raw) {
+    if (raw is! Map) return const [];
+    final root = '${raw['root'] ?? ''}'.trim();
+    final out = <PdfFile>[];
+    final seen = <String>{};
+    for (final f in (raw['files'] as List? ?? const [])) {
+      final parts = '$f'.split('|');
+      final name = parts.first.trim();
+      if (name.isEmpty) continue;
+      final path = [...root.split('/').where((x) => x.isNotEmpty), name].map(Uri.encodeComponent).join('/');
+      final url = 'https://files.turath.io/pdf/$path';
+      if (!seen.add(url)) continue;
+      out.add(PdfFile(url, parts.length > 1 ? parts[1].trim() : ''));
+    }
+    return out;
+  }
+
+  /// The scanned file holding volume [vol] (or the only one).
+  PdfFile? pdfFor(String vol) {
+    if (pdfs.isEmpty) return null;
+    for (final p in pdfs) {
+      if (p.label == vol) return p;
+    }
+    return pdfs.first;
+  }
 
   int get count => pageMap.length;
 
@@ -36,7 +70,9 @@ class BookIndex {
     }
     final pm = (ix['page_map'] as List? ?? const []).map((e) => '$e').toList();
     final vols = (ix['volumes'] as List? ?? const []).length;
-    return BookIndex(heads, pm, vols == 0 ? 1 : vols);
+    final meta = j['meta'];
+    final pdf = j['pdf'] ?? (meta is Map ? meta['pdf_links'] : null);
+    return BookIndex(heads, pm, vols == 0 ? 1 : vols, _pdfs(pdf));
   }
 
   (String, int) printed(int pg) {
@@ -235,6 +271,33 @@ class Turath {
     _indexes.remove(id);
     Store.i.setDownloaded(id, true);
   }
+
+  /// Searches a book kept in the library (light text, no harakat). Works on the website too.
+  static Future<List<SearchHit>> searchHosted(int id, int authorId, String bookName, String q, {int limit = 60}) async {
+    final lines = _texts[id] ?? (await _get('$booksBase$id/s.txt', timeout: const Duration(seconds: 60))).split('\n');
+    if (_texts.length > 6) _texts.clear();
+    _texts[id] = lines;
+    final nq = norm(q);
+    final out = <SearchHit>[];
+    if (nq.isEmpty) return out;
+    BookIndex? ix;
+    try {
+      ix = await index(id);
+    } catch (_) {}
+    for (var i = 0; i < lines.length && out.length < limit; i++) {
+      final t = lines[i];
+      final at = t.indexOf(nq);
+      if (at < 0) continue;
+      final a = (at - 80).clamp(0, t.length);
+      final b = (at + nq.length + 80).clamp(0, t.length);
+      final snip = '${a > 0 ? '…' : ''}${t.substring(a, at)}<em>${t.substring(at, at + nq.length)}</em>${t.substring(at + nq.length, b)}${b < t.length ? '…' : ''}';
+      final (vol, page) = ix?.printed(i + 1) ?? ('', i + 1);
+      out.add(SearchHit(id, authorId, i + 1, vol, page, bookName, snip));
+    }
+    return out;
+  }
+
+  static final Map<int, List<String>> _texts = {};
 
   static Future<void> removeDownload(int id) async {
     await BookFiles.delete(id);

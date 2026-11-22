@@ -11,6 +11,7 @@ Output, in site_books/:
   <id>/p<k>.json       pages k*CHUNK+1 .. (k+1)*CHUNK as [[vol, page, text], ...]
 """
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -42,6 +43,19 @@ def fetch(url, tries=8):
             time.sleep(5 + i * 5)
 
 
+HARAKAT = re.compile("[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]")
+TAGS = re.compile(r"<[^>]+>")
+SPACES = re.compile(r"\s+")
+FOLD = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي"})
+
+
+def norm(text):
+    """Search form of a page, the same as norm() in lib/text.dart."""
+    t = TAGS.sub(" ", text).replace("&nbsp;", " ")
+    t = HARAKAT.sub("", t).translate(FOLD)
+    return SPACES.sub(" ", t).strip()
+
+
 def main():
     start = time.time()
     cat = json.loads(Path("assets/data/catalog.json").read_text(encoding="utf-8"))
@@ -71,7 +85,9 @@ def main():
                     print("skip", bid, e)
                     continue
             try:
-                ix = json.loads(idx_f.read_text(encoding="utf-8")).get("indexes") or {}
+                idx_all = json.loads(idx_f.read_text(encoding="utf-8"))
+                ix = idx_all.get("indexes") or {}
+                pdf = (idx_all.get("meta") or {}).get("pdf_links") or None
                 pages = json.loads(raw_f.read_text(encoding="utf-8")).get("pages") or []
             except Exception as e:  # noqa: BLE001
                 print("bad cache", bid, e)
@@ -85,11 +101,14 @@ def main():
                 "volumes": ix.get("volumes") or [],
                 "count": len(pages),
                 "chunk": CHUNK,
+                "pdf": pdf,
             }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
             rows = [[str(p.get("vol") or ""), int(p.get("page") or 0), p.get("text") or ""] for p in pages]
             for k in range(0, len(rows), CHUNK):
                 (d / f"p{k // CHUNK}.json").write_text(json.dumps(rows[k:k + CHUNK], ensure_ascii=False, separators=(",", ":")),
                                                       encoding="utf-8")
+            # light text for searching (no harakat), one page per line, for the website search
+            (d / "s.txt").write_text("\n".join(norm(r[2]).replace("\n", " ") for r in rows), encoding="utf-8")
             hosted.append(bid)
     (OUT / "hosted.json").write_text(json.dumps(hosted), encoding="utf-8")
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())

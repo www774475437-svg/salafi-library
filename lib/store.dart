@@ -39,6 +39,8 @@ class Store extends ChangeNotifier {
   String readFont = 'Amiri';
   int paper = 0; // 0 white, 1 cream, 2 night
   bool tashkeel = true;
+  int readMode = 0; // 0 pages like the printed book, 1 one continuous text
+  final Map<String, int> pdfOffset = {}; // "book:vol" → scanned page minus printed page
 
   // reading
   final Map<int, int> lastPg = {};
@@ -62,10 +64,12 @@ class Store extends ChangeNotifier {
     readFont = p.getString('readFont') ?? 'Amiri';
     paper = p.getInt('paper') ?? 0;
     tashkeel = p.getBool('tashkeel') ?? true;
+    readMode = p.getInt('readMode') ?? 0;
     try {
       final lp = jsonDecode(p.getString('lastPg') ?? '{}') as Map<String, dynamic>;
       lp.forEach((k, v) => lastPg[int.parse(k)] = (v as num).toInt());
       recent.addAll((jsonDecode(p.getString('recent') ?? '[]') as List).map((e) => (e as num).toInt()));
+      (jsonDecode(p.getString('pdfOffset') ?? '{}') as Map<String, dynamic>).forEach((k, v) => pdfOffset[k] = (v as num).toInt());
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
       bookmarks.addAll(_list('bookmarks'));
       highlights.addAll(_list('highlights'));
@@ -89,6 +93,8 @@ class Store extends ChangeNotifier {
     p.setString('readFont', readFont);
     p.setInt('paper', paper);
     p.setBool('tashkeel', tashkeel);
+    p.setInt('readMode', readMode);
+    p.setString('pdfOffset', jsonEncode(pdfOffset));
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
     p.setString('recent', jsonEncode(recent));
     p.setString('downloaded', jsonEncode(downloaded.toList()));
@@ -102,7 +108,8 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel}) {
+  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode}) {
+    if (readMode != null) this.readMode = readMode;
     if (themeMode != null) this.themeMode = themeMode;
     if (fontSize != null) this.fontSize = fontSize.clamp(15, 40).toDouble();
     if (readFont != null) this.readFont = readFont;
@@ -118,6 +125,14 @@ class Store extends ChangeNotifier {
     recent.insert(0, book);
     if (recent.length > 30) recent.removeLast();
     _save();
+  }
+
+  int offsetFor(int book, String vol) => pdfOffset['$book:$vol'] ?? pdfOffset['$book:'] ?? 0;
+
+  void setOffset(int book, String vol, int off) {
+    pdfOffset['$book:$vol'] = off;
+    pdfOffset['$book:'] = off;
+    changed();
   }
 
   void forgetRecent(int book) {

@@ -26,6 +26,7 @@ class _SearchScreenState extends State<SearchScreen> {
   int _page = 1;
   final List<SearchHit> _hits = [];
   int _searchId = 0;
+  String _progress = '';
 
   List<Scholar> get _chosen => _scholar < 0 ? Catalog.scholars.where((s) => s.authorId > 0).toList() : [Catalog.scholars[_scholar]];
 
@@ -63,6 +64,26 @@ class _SearchScreenState extends State<SearchScreen> {
             _total = _hits.length;
           });
         }
+      } else if (kIsWeb) {
+        // the website cannot ask «تراث»; it searches the books kept in the library, book by book
+        final books = [for (final s in _chosen) ...s.books.where((b) => Turath.hosted.contains(b.id))];
+        if (more) return;
+        if (books.isEmpty) {
+          _error = 'كتب ${_scholar < 0 ? 'هؤلاء العلماء' : Catalog.scholars[_scholar].short} لم تُضف إلى الموقع بعد. ويمكنك البحث فيها كلها في تطبيق أندرويد.';
+        }
+        for (var i = 0; i < books.length && _hits.length < 400; i++) {
+          final bk = books[i];
+          setState(() => _progress = 'يبحث في ${Ar.num(i + 1)} من ${Ar.num(books.length)}: ${bk.shortName}');
+          try {
+            final r = await Turath.searchHosted(bk.id, bk.scholar.authorId, bk.name, q, limit: 40);
+            if (id != _searchId) return;
+            setState(() {
+              _hits.addAll(r);
+              _total = _hits.length;
+            });
+          } catch (_) {}
+        }
+        _progress = '';
       } else {
         final results = await Future.wait(_chosen.map((s) => Turath.search(q, s.authorId, page: _page).catchError((_) => (0, <SearchHit>[]))));
         if (id != _searchId) return;
@@ -171,7 +192,13 @@ class _SearchScreenState extends State<SearchScreen> {
         if (i == 0) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_busy && _hits.isEmpty ? 'يبحث…' : 'النتائج: ${Ar.num(_total)}', style: TextStyle(color: C.muted(context), fontSize: 13.5)),
+            child: Text(
+                _busy && _progress.isNotEmpty
+                    ? 'النتائج: ${Ar.num(_hits.length)} · $_progress'
+                    : _busy && _hits.isEmpty
+                        ? 'يبحث…'
+                        : 'النتائج: ${Ar.num(_total)}',
+                style: TextStyle(color: C.muted(context), fontSize: 13.5)),
           );
         }
         if (i == _hits.length + 1) {
@@ -272,6 +299,10 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
         for (final m in r) {
           _hits.add(SearchHit(b.id, b.scholar.authorId, m['pg'] as int, '${m['vol']}', m['page'] as int, b.name, m['snip'] as String));
         }
+      } else if (Turath.hosted.contains(b.id)) {
+        _hits.addAll(await Turath.searchHosted(b.id, b.scholar.authorId, b.name, q, limit: 400));
+      } else if (kIsWeb) {
+        _note = 'هذا الكتاب لم يُضف إلى الموقع بعد، ويمكنك البحث فيه في تطبيق أندرويد.';
       } else {
         for (var p = 1; p <= 6; p++) {
           final (total, hits) = await Turath.search(q, b.scholar.authorId, page: p);

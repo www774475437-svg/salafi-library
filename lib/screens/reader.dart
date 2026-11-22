@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../catalog.dart';
@@ -10,6 +11,7 @@ import '../text.dart';
 import '../turath.dart';
 import '../ui.dart';
 import 'book.dart';
+import 'pdf.dart';
 import 'search.dart';
 
 void openReader(BuildContext context, BookInfo b, int pg) =>
@@ -52,7 +54,10 @@ class ReaderScreen extends StatefulWidget {
 }
 
 class _ReaderScreenState extends State<ReaderScreen> {
-  late final PageController _pc;
+  PageController _pc = PageController();
+  final _flowCtl = ItemScrollController();
+  final _flowPos = ItemPositionsListener.create();
+  int _modeShown = -1;
   late int pg;
   BookIndex? index;
   bool indexFailed = false;
@@ -66,8 +71,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
     super.initState();
     pg = widget.startPg < 1 ? 1 : widget.startPg;
     _pc = PageController(initialPage: pg - 1);
+    _modeShown = Store.i.readMode;
+    _flowPos.itemPositions.addListener(_flowMoved);
     Store.i.readAt(b.id, pg);
     _loadIndex();
+  }
+
+  /// In the continuous text, the page at the top of the screen is the page being read.
+  void _flowMoved() {
+    if (Store.i.readMode != 1) return;
+    final ps = _flowPos.itemPositions.value.where((p) => p.itemTrailingEdge > 0.15);
+    if (ps.isEmpty) return;
+    final first = ps.map((p) => p.index).reduce((a, b) => a < b ? a : b) + 1;
+    if (first != pg && mounted) {
+      setState(() => pg = first);
+      Store.i.readAt(b.id, pg);
+    }
+  }
+
+  void setMode(int m) {
+    if (m == Store.i.readMode) return;
+    if (m == 0) {
+      _pc.dispose();
+      _pc = PageController(initialPage: pg - 1);
+    }
+    _modeShown = m;
+    Store.i.setSettings(readMode: m);
   }
 
   Future<void> _loadIndex() async {
@@ -81,6 +110,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _flowPos.itemPositions.removeListener(_flowMoved);
     _pc.dispose();
     super.dispose();
   }
@@ -91,7 +121,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void goTo(int p) {
     final t = p.clamp(1, total);
-    _pc.jumpToPage(t - 1);
+    if (Store.i.readMode == 1) {
+      if (_flowCtl.isAttached) _flowCtl.jumpTo(index: t - 1);
+      setState(() => pg = t);
+      Store.i.readAt(b.id, t);
+    } else {
+      _pc.jumpToPage(t - 1);
+    }
+  }
+
+  void _step(int d) {
+    if (Store.i.readMode == 1) {
+      goTo(pg + d);
+    } else if (d > 0) {
+      _pc.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    } else {
+      _pc.previousPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    }
   }
 
   String label(int p) => index?.label(p) ?? Ar.num(p);
@@ -131,6 +177,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'search', child: ListTile(leading: Icon(Icons.search_rounded), title: Text('ابحث في الكتاب'))),
                   const PopupMenuItem(value: 'goto', child: ListTile(leading: Icon(Icons.numbers_rounded), title: Text('انتقل إلى صفحة'))),
+                  if (index != null && index!.pdfs.isNotEmpty)
+                    const PopupMenuItem(value: 'pdf', child: ListTile(leading: Icon(Icons.picture_as_pdf_rounded), title: Text('النسخة المصوّرة PDF'))),
                   const PopupMenuItem(value: 'look', child: ListTile(leading: Icon(Icons.text_fields_rounded), title: Text('الخط والعرض'))),
                   if (BookFiles.supported && !Store.i.downloaded.contains(b.id))
                     const PopupMenuItem(value: 'download', child: ListTile(leading: Icon(Icons.download_rounded), title: Text('حمّل الكتاب'))),
@@ -141,15 +189,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
           body: Column(children: [
             Expanded(
-              child: PageView.builder(
-                controller: _pc,
-                itemCount: total,
-                onPageChanged: (i) {
-                  setState(() => pg = i + 1);
-                  Store.i.readAt(b.id, pg);
-                },
-                itemBuilder: (context, i) => _Page(state: this, pg: i + 1, ink: ink),
-              ),
+              child: Store.i.readMode == 1
+                  ? ScrollablePositionedList.builder(
+                      key: ValueKey('flow$_modeShown'),
+                      itemScrollController: _flowCtl,
+                      itemPositionsListener: _flowPos,
+                      initialScrollIndex: pg - 1,
+                      itemCount: total,
+                      itemBuilder: (context, i) => _Page(state: this, pg: i + 1, ink: ink, flow: true),
+                    )
+                  : PageView.builder(
+                      key: ValueKey('pages$_modeShown'),
+                      controller: _pc,
+                      itemCount: total,
+                      onPageChanged: (i) {
+                        setState(() => pg = i + 1);
+                        Store.i.readAt(b.id, pg);
+                      },
+                      itemBuilder: (context, i) => _Page(state: this, pg: i + 1, ink: ink),
+                    ),
             ),
             _bottomBar(context, paper, ink),
           ]),
@@ -164,11 +222,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
         decoration: BoxDecoration(color: paper, border: Border(top: BorderSide(color: ink.withValues(alpha: 0.10)))),
-        child: Row(children: [
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _modeChip(context, ink, Icons.auto_stories_rounded, 'كالكتاب', Store.i.readMode == 0, () => setMode(0)),
+              _modeChip(context, ink, Icons.view_day_rounded, 'نص متصل', Store.i.readMode == 1, () => setMode(1)),
+              if (index != null && index!.pdfs.isNotEmpty)
+                _modeChip(context, ink, Icons.picture_as_pdf_rounded, 'المصوّر PDF', false, () => openPdf(context, b, index!, pg)),
+            ]),
+          ),
+          Row(children: [
           IconButton(
             tooltip: 'السابقة',
             icon: Icon(Icons.chevron_right_rounded, color: ink),
-            onPressed: pg > 1 ? () => _pc.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut) : null,
+            onPressed: pg > 1 ? () => _step(-1) : null,
           ),
           Expanded(
             child: total > 1
@@ -193,15 +261,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
           IconButton(
             tooltip: 'التالية',
             icon: Icon(Icons.chevron_left_rounded, color: ink),
-            onPressed: pg < total ? () => _pc.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut) : null,
+            onPressed: pg < total ? () => _step(1) : null,
           ),
         ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _modeChip(BuildContext context, Color ink, IconData icon, String label, bool on, VoidCallback tap) {
+    final ac = C.accent(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: on ? ac.withValues(alpha: 0.14) : Colors.transparent,
+        shape: StadiumBorder(side: BorderSide(color: on ? ac : ink.withValues(alpha: 0.18))),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: tap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 17, color: on ? ac : ink.withValues(alpha: 0.7)),
+              const SizedBox(width: 5),
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: on ? FontWeight.w700 : FontWeight.w500, color: on ? ac : ink.withValues(alpha: 0.8))),
+            ]),
+          ),
+        ),
       ),
     );
   }
 
   void _menu(String v) {
     switch (v) {
+      case 'pdf':
+        if (index != null) openPdf(context, b, index!, pg);
       case 'search':
         Navigator.push(context, MaterialPageRoute(builder: (_) => BookSearchScreen(b, onOpen: goTo)));
       case 'goto':
@@ -276,7 +370,8 @@ class _Page extends StatelessWidget {
   final _ReaderScreenState state;
   final int pg;
   final Color ink;
-  const _Page({required this.state, required this.pg, required this.ink});
+  final bool flow; // part of the continuous text
+  const _Page({required this.state, required this.pg, required this.ink, this.flow = false});
 
   @override
   Widget build(BuildContext context) {
@@ -284,10 +379,10 @@ class _Page extends StatelessWidget {
       future: state.pageFuture(pg),
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return flow ? const SizedBox(height: 240, child: Center(child: CircularProgressIndicator())) : const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError || snap.data == null) {
-          return Center(
+          final err = Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               EmptyNote(
                   Icons.wifi_off_rounded,
@@ -297,12 +392,13 @@ class _Page extends StatelessWidget {
               TextButton(onPressed: () => state.retry(pg), child: const Text('حاول مرة أخرى')),
             ]),
           );
+          return flow ? Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: err) : err;
         }
         final st = Store.i;
         final pt = cleanPage(snap.data!.text, harakat: st.tashkeel);
         final base = TextStyle(fontFamily: st.readFont, fontSize: st.fontSize, height: st.readFont == 'Amiri' ? 2.0 : 1.9, color: ink);
-        return Scrollbar(
-          child: ListView(padding: const EdgeInsets.fromLTRB(22, 14, 22, 30), children: [
+        final heading = state.index?.headingAt(pg);
+        final content = <Widget>[
             SelectableText.rich(
               TextSpan(children: _spans(context, pt, base)),
               textAlign: TextAlign.justify,
@@ -314,9 +410,64 @@ class _Page extends StatelessWidget {
               SelectableText(pt.foot,
                   style: TextStyle(fontFamily: st.readFont, fontSize: st.fontSize * 0.72, height: 1.8, color: ink.withValues(alpha: 0.8))),
             ],
-            const SizedBox(height: 18),
-            Center(child: Text(state.label(pg), style: TextStyle(fontSize: 13, color: ink.withValues(alpha: 0.5)))),
-          ]),
+        ];
+        if (flow) {
+          // continuous text: pages one after another, with the page number between them
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ...content,
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Row(children: [
+                  Expanded(child: Divider(color: ink.withValues(alpha: 0.15))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(state.label(pg), style: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.5))),
+                  ),
+                  Expanded(child: Divider(color: ink.withValues(alpha: 0.15))),
+                ]),
+              ),
+            ]),
+          );
+        }
+        // a page like the printed book: header line, framed page, page number at the foot
+        final paperCol = st.paper == 0 ? C.card(context) : Color.alphaBlend(Colors.white.withValues(alpha: C.dark(context) || st.paper == 3 ? 0.03 : 0.5), paperColors(context).$1);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: paperCol,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: C.gold(context).withValues(alpha: 0.35)),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))],
+            ),
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(heading?.title ?? state.b.shortName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontFamily: bookFont, fontSize: 14, color: C.accent(context))),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(state.b.shortName == (heading?.title ?? state.b.shortName) ? '' : state.b.shortName,
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: ink.withValues(alpha: 0.45))),
+                ]),
+              ),
+              Divider(height: 1, indent: 14, endIndent: 14, color: C.gold(context).withValues(alpha: 0.45)),
+              Expanded(
+                child: Scrollbar(
+                  child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 16), children: content),
+                ),
+              ),
+              Divider(height: 1, indent: 14, endIndent: 14, color: C.gold(context).withValues(alpha: 0.45)),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(state.label(pg), style: TextStyle(fontSize: 13, color: ink.withValues(alpha: 0.6))),
+              ),
+            ]),
+          ),
         );
       },
     );
