@@ -81,10 +81,8 @@ class _FawaidScreenState extends State<FawaidScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final keys = <String>[];
-    for (final f in Fawaid.all) {
-      if (!keys.contains(f.scholar.key)) keys.add(f.scholar.key);
-    }
+    // every scholar gets a chip, even before his sayings are added
+    final keys = [for (final s in Catalog.scholars) s.key];
     final nq = norm(q);
     final list = Fawaid.all
         .where((f) => (scholar.isEmpty || f.scholar.key == scholar) && (nq.isEmpty || norm(f.text).contains(nq) || norm(f.source).contains(nq)))
@@ -108,17 +106,22 @@ class _FawaidScreenState extends State<FawaidScreen> {
             ),
           ),
         ),
-        if (keys.length > 1)
-          SizedBox(
-            height: 48,
-            child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), children: [
-              _chip('الكل', scholar.isEmpty, () => setState(() => scholar = '')),
-              for (final k in keys) _chip(byKey(k).short, scholar == k, () => setState(() => scholar = k)),
-            ]),
-          ),
+        SizedBox(
+          height: 48,
+          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), children: [
+            _chip('الكل', scholar.isEmpty, () => setState(() => scholar = '')),
+            for (final k in keys) _chip(byKey(k).short, scholar == k, () => setState(() => scholar = k)),
+          ]),
+        ),
         Expanded(
           child: list.isEmpty
-              ? EmptyNote(Icons.lightbulb_outline_rounded, Fawaid.all.isEmpty ? 'تُضاف الفوائد قريبًا بإذن الله.' : 'لا فائدة بهذه الكلمة.')
+              ? EmptyNote(
+                  Icons.lightbulb_outline_rounded,
+                  scholar.isNotEmpty && Fawaid.all.every((f) => f.scholar.key != scholar)
+                      ? 'فوائد ${byKey(scholar).short} قريبًا بإذن الله.'
+                      : Fawaid.all.isEmpty
+                          ? 'تُضاف الفوائد قريبًا بإذن الله.'
+                          : 'لا فائدة بهذه الكلمة.')
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
                   itemCount: list.length + 1,
