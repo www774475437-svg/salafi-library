@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show BrowserContextMenu;
+
 import 'catalog.dart';
+import 'fawaid.dart';
 import 'screens/home.dart';
 import 'screens/library.dart';
 import 'screens/search.dart';
@@ -18,6 +22,9 @@ Future<void> main() async {
     Store.i.load(),
     Turath.loadHosted().timeout(const Duration(seconds: 4), onTimeout: () {}),
   ]);
+  await Fawaid.load();
+  // on the website our own bar handles selected text, not the browser's menu
+  if (kIsWeb) await BrowserContextMenu.disableContextMenu();
   runApp(const SalafiLibraryApp());
   Updates.check();
 }

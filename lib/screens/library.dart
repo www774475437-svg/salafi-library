@@ -7,6 +7,7 @@ import '../files/files.dart';
 import '../store.dart';
 import '../ui.dart';
 import 'book.dart';
+import 'colors.dart';
 import 'reader.dart';
 import 'scholar.dart' show BookTile;
 
@@ -20,7 +21,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   int tab = 0;
   int color = -1; // highlight filter
 
-  static const _tabs = ['المظلّلات', 'الاقتباسات', 'الفواصل', 'المحمّلة', 'قرأتُ'];
+  static const _tabs = ['المظلّلات', 'الاقتباسات', 'الفواصل', 'المحمّلة', 'قرأتُ', 'الملاحظات'];
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +66,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         return s.bookmarks.length;
       case 3:
         return s.downloaded.length;
+      case 5:
+        return s.notes.length;
       default:
         return s.recent.where(Catalog.byId.containsKey).length;
     }
@@ -78,20 +81,40 @@ class _LibraryScreenState extends State<LibraryScreen> {
         return ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [
           Wrap(spacing: 8, children: [
             ChoiceChip(label: const Text('الكل'), selected: color < 0, showCheckmark: false, onSelected: (_) => setState(() => color = -1)),
-            for (var c = 0; c < 3; c++)
+            for (var c = 0; c < s.colors.length; c++)
               ChoiceChip(
-                avatar: CircleAvatar(backgroundColor: hlColors[c].withValues(alpha: 1), radius: 8),
-                label: Text(hlNames[c]),
+                avatar: CircleAvatar(backgroundColor: hlSolid(c), radius: 8),
+                label: Text(hlName(c)),
                 selected: color == c,
                 showCheckmark: false,
                 onSelected: (_) => setState(() => color = c),
               ),
+            ActionChip(
+              avatar: const Icon(Icons.palette_outlined, size: 18),
+              label: const Text('الألوان وأسماؤها'),
+              onPressed: () => showColorsSheet(context),
+            ),
           ]),
           const SizedBox(height: 10),
           if (list.isEmpty)
-            const EmptyNote(Icons.border_color_rounded, 'حدّد نصًّا وأنت تقرأ ثم اختر «ظلّل» بالأصفر أو الأحمر أو الأخضر، فيظهر هنا.')
+            const EmptyNote(Icons.border_color_rounded, 'حدّد نصًّا وأنت تقرأ ثم اختر لونًا من الشريط الذي يظهر في الأسفل، فيظهر هنا تحت اسم لونه.')
+          else if (color >= 0)
+            for (final h in list) _KeptCard(h, kind: 0)
           else
-            for (final h in list) _KeptCard(h, kind: 0),
+            // everything, gathered under each colour's name
+            for (var c = 0; c < s.colors.length; c++)
+              if (list.any((h) => h.color == c)) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                  child: Row(children: [
+                    CircleAvatar(backgroundColor: hlSolid(c), radius: 7),
+                    const SizedBox(width: 8),
+                    Text('${hlName(c)} (${Ar.num(list.where((h) => h.color == c).length)})',
+                        style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: C.ink(context))),
+                  ]),
+                ),
+                for (final h in list.where((h) => h.color == c)) _KeptCard(h, kind: 0),
+              ],
         ]);
       case 1:
         return s.quotes.isEmpty
@@ -109,6 +132,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         return books.isEmpty
             ? const EmptyNote(Icons.download_rounded, 'لم تحمّل كتابًا بعد. افتح أي كتاب واضغط «تحميل» ليُقرأ ويُبحث فيه بلا إنترنت.')
             : ListView(padding: const EdgeInsets.only(top: 6, bottom: 110), children: [for (final b in books) BookTile(b)]);
+      case 5:
+        return s.notes.isEmpty
+            ? const EmptyNote(Icons.sticky_note_2_outlined, 'حدّد نصًّا وأنت تقرأ ثم اضغط «ملاحظة» واكتب ما تريد، فتُحفظ هنا مع موضعها في الكتاب.')
+            : ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [for (final n in s.notes) _KeptCard(n, kind: 3)]);
       default:
         final books = s.recent.map((id) => Catalog.byId[id]).whereType<BookInfo>().toList();
         return books.isEmpty
@@ -142,8 +169,20 @@ class _KeptCard extends StatelessWidget {
         else
           Container(
             padding: kind == 0 ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2) : EdgeInsets.zero,
-            decoration: kind == 0 ? BoxDecoration(color: hlColors[k.color], borderRadius: BorderRadius.circular(6)) : null,
-            child: Text(kind == 1 ? '«${k.text}»' : k.text, style: TextStyle(fontFamily: bookFont, fontSize: 18, height: 1.8, color: C.ink(context))),
+            decoration: kind == 0 ? BoxDecoration(color: hlColor(k.color), borderRadius: BorderRadius.circular(6)) : null,
+            child: Text(kind == 1 || kind == 3 ? '«${k.text}»' : k.text, style: TextStyle(fontFamily: bookFont, fontSize: 18, height: 1.8, color: C.ink(context))),
+          ),
+        if (k.note.isNotEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: C.accent(context).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.sticky_note_2_outlined, size: 18, color: C.accent(context)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(k.note, style: TextStyle(fontSize: 15, height: 1.6, color: C.ink(context)))),
+            ]),
           ),
         const SizedBox(height: 8),
         Row(children: [

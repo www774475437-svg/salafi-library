@@ -11,7 +11,9 @@ import '../text.dart';
 import '../turath.dart';
 import '../ui.dart';
 import 'book.dart';
+import 'colors.dart';
 import 'pdf.dart';
+import 'quote_image.dart';
 import 'search.dart';
 
 void openReader(BuildContext context, BookInfo b, int pg) =>
@@ -58,6 +60,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final _flowCtl = ItemScrollController();
   final _flowPos = ItemPositionsListener.create();
   int _modeShown = -1;
+
+  // the text the reader has selected (the bar at the bottom acts on it)
+  String selText = '';
+  String selBody = '';
+  int selPg = 0, selStart = 0, selEnd = 0;
+  int selEpoch = 0;
+
+  void onSelect(int p, String body, int a, int e) {
+    final t = a < e ? body.substring(a, e).trim() : '';
+    if (t.isEmpty && (selText.isEmpty || selPg != p)) return;
+    if (t == selText && p == selPg) return;
+    setState(() {
+      selText = t;
+      selBody = body;
+      selPg = p;
+      selStart = a;
+      selEnd = e;
+    });
+  }
+
+  /// Ends the selection (the page text is rebuilt, which removes the handles).
+  void clearSel() => setState(() {
+        selText = '';
+        selEpoch++;
+      });
+
+  /// A highlight lying under the selected words, if any.
+  Kept? get _under {
+    for (final h in Store.i.highlightsOn(b.id, selPg)) {
+      final r = locate(selBody, h.text);
+      if (r != null && selStart < r.$2 && selEnd > r.$1) return h;
+    }
+    return null;
+  }
   late int pg;
   BookIndex? index;
   bool indexFailed = false;
@@ -203,13 +239,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       controller: _pc,
                       itemCount: total,
                       onPageChanged: (i) {
-                        setState(() => pg = i + 1);
+                        setState(() {
+                          pg = i + 1;
+                          selText = '';
+                        });
                         Store.i.readAt(b.id, pg);
                       },
                       itemBuilder: (context, i) => _Page(state: this, pg: i + 1, ink: ink),
                     ),
             ),
-            _bottomBar(context, paper, ink),
+            selText.isNotEmpty ? _selBar(context, paper, ink) : _bottomBar(context, paper, ink),
           ]),
         );
       },
@@ -267,6 +306,109 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ]),
       ),
     );
+  }
+
+  /// The bar that appears when words are selected: colours, copy, quote, share, note.
+  Widget _selBar(BuildContext context, Color paper, Color ink) {
+    final st = Store.i;
+    final src = source(selPg);
+    final lab = label(selPg);
+    final text = selText;
+    final under = _under;
+    Widget item(Widget top, String name, VoidCallback tap) => InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: tap,
+          child: SizedBox(
+            width: 62,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              SizedBox(height: 34, child: Center(child: top)),
+              const SizedBox(height: 3),
+              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 10.5, color: ink.withValues(alpha: 0.75))),
+            ]),
+          ),
+        );
+    Widget ico(IconData i) => Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ink.withValues(alpha: 0.25))),
+          child: Icon(i, size: 18, color: C.accent(context)),
+        );
+    Widget sep() => Container(width: 1, height: 36, margin: const EdgeInsets.symmetric(horizontal: 4), color: ink.withValues(alpha: 0.12));
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(color: paper, border: Border(top: BorderSide(color: C.gold(context).withValues(alpha: 0.5)))),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (var c = 0; c < st.colors.length; c++)
+              item(
+                Container(width: 30, height: 30, decoration: BoxDecoration(color: hlSolid(c), shape: BoxShape.circle, border: Border.all(color: Colors.black12))),
+                hlName(c),
+                () {
+                  st.addHighlight(b.id, selPg, text, c, lab);
+                  clearSel();
+                },
+              ),
+            item(ico(Icons.palette_outlined), 'الألوان', () => showColorsSheet(context)),
+            if (under != null)
+              item(ico(Icons.format_color_reset_rounded), 'أزل التظليل', () {
+                st.remove(under);
+                clearSel();
+              }),
+            sep(),
+            item(ico(Icons.copy_rounded), 'نسخ', () {
+              Clipboard.setData(ClipboardData(text: text));
+              clearSel();
+              toast(context, 'نُسخ النص');
+            }),
+            item(ico(Icons.library_books_outlined), 'نسخ بالمصدر', () {
+              Clipboard.setData(ClipboardData(text: quoteText(b, text, src)));
+              clearSel();
+              toast(context, 'نُسخ النص مع اسم الكتاب والصفحة');
+            }),
+            item(ico(Icons.format_quote_rounded), 'اقتباس', () {
+              st.addQuote(b.id, selPg, text, lab);
+              clearSel();
+              toast(context, 'حُفظ في اقتباساتك في «مكتبتي»');
+            }),
+            item(ico(Icons.share_rounded), 'مشاركة', () => Share.share(quoteText(b, text, src))),
+            item(ico(Icons.image_outlined), 'مشاركة صورة',
+                () => showQuoteImage(context, text: text, scholar: '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),
+            item(ico(Icons.sticky_note_2_outlined), 'ملاحظة', () => _addNote(text, lab)),
+            sep(),
+            item(ico(Icons.close_rounded), 'إغلاق', clearSel),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addNote(String text, String lab) async {
+    final ctl = TextEditingController();
+    final p = selPg;
+    final note = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('ملاحظة'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('«$text»', maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: bookFont, fontSize: 15.5, height: 1.7, color: C.muted(c))),
+          const SizedBox(height: 10),
+          TextField(controller: ctl, autofocus: true, maxLines: 4, minLines: 2, decoration: const InputDecoration(hintText: 'اكتب ملاحظتك…', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(c, ctl.text), child: const Text('احفظ')),
+        ],
+      ),
+    );
+    if (note == null || note.trim().isEmpty || !mounted) return;
+    Store.i.addNote(b.id, p, text, note, lab);
+    clearSel();
+    toast(context, 'حُفظت الملاحظة في «مكتبتي»');
   }
 
   Widget _modeChip(BuildContext context, Color ink, IconData icon, String label, bool on, VoidCallback tap) {
@@ -400,9 +542,16 @@ class _Page extends StatelessWidget {
         final heading = state.index?.headingAt(pg);
         final content = <Widget>[
             SelectableText.rich(
+              key: ValueKey('t$pg-${state.selEpoch}'),
               TextSpan(children: _spans(context, pt, base)),
               textAlign: TextAlign.justify,
-              contextMenuBuilder: (context, es) => _menu(context, es, pt),
+              onSelectionChanged: (sel, cause) {
+                final n = pt.body.length;
+                final a = sel.isValid ? sel.start.clamp(0, n) : 0;
+                final e = sel.isValid ? sel.end.clamp(0, n) : 0;
+                state.onSelect(pg, pt.body, a, e);
+              },
+              contextMenuBuilder: (context, es) => AdaptiveTextSelectionToolbar.editableText(editableTextState: es),
             ),
             if (pt.foot.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -507,70 +656,11 @@ class _Page extends StatelessWidget {
         style: base.copyWith(
           fontWeight: inTitle ? FontWeight.w700 : null,
           color: inTitle ? C.accent(context) : null,
-          backgroundColor: color == null ? null : hlColors[color],
+          backgroundColor: color == null ? null : hlColor(color),
         ),
       ));
     }
     return spans;
-  }
-
-  Widget _menu(BuildContext context, EditableTextState es, PageText pt) {
-    final v = es.textEditingValue;
-    final sel = v.selection;
-    final picked = sel.isValid && !sel.isCollapsed ? sel.textInside(v.text).trim() : '';
-    final b = state.b;
-    void done() {
-      es.hideToolbar();
-      es.userUpdateTextEditingValue(v.copyWith(selection: TextSelection.collapsed(offset: sel.end)), SelectionChangedCause.toolbar);
-    }
-
-    // a highlight under the selection can be removed
-    Kept? under;
-    if (sel.isValid) {
-      for (final h in Store.i.highlightsOn(b.id, pg)) {
-        final r = locate(pt.body, h.text);
-        if (r != null && sel.start < r.$2 && sel.end > r.$1) under = h;
-      }
-    }
-    final items = <ContextMenuButtonItem>[
-      if (picked.isNotEmpty) ...[
-        for (var c = 0; c < 3; c++)
-          ContextMenuButtonItem(
-            label: 'ظلّل ${hlNames[c]}',
-            onPressed: () {
-              Store.i.addHighlight(b.id, pg, picked, c, state.label(pg));
-              done();
-            },
-          ),
-        ContextMenuButtonItem(
-          label: 'اقتبس',
-          onPressed: () {
-            Store.i.addQuote(b.id, pg, picked, state.label(pg));
-            done();
-            final t = quoteText(b, picked, state.source(pg));
-            Share.share(t);
-          },
-        ),
-        ContextMenuButtonItem(
-          label: 'انسخ مع المصدر',
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: quoteText(b, picked, state.source(pg))));
-            done();
-            toast(context, 'نُسخ النص مع المصدر');
-          },
-        ),
-      ],
-      if (under != null)
-        ContextMenuButtonItem(
-          label: 'أزل التظليل',
-          onPressed: () {
-            Store.i.remove(under!);
-            done();
-          },
-        ),
-      ...es.contextMenuButtonItems,
-    ];
-    return AdaptiveTextSelectionToolbar.buttonItems(anchors: es.contextMenuAnchors, buttonItems: items);
   }
 }
 

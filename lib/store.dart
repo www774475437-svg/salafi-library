@@ -28,6 +28,28 @@ class Kept {
       );
 }
 
+/// A highlight colour the reader can name («طرائف», «فوائد»…).
+class HlColor {
+  int value; // 0xRRGGBB
+  String name;
+  HlColor(this.value, this.name);
+}
+
+/// Colours offered when the reader adds a new one.
+const hlPalette = [0xFFD54F, 0xEF5350, 0x66BB6A, 0x64B5F6, 0xFFA726, 0xBA68C8, 0xF48FB1, 0x4DB6AC];
+
+Color hlColor(int c) {
+  final cs = Store.i.colors;
+  return Color(0xFF000000 | cs[c < 0 || c >= cs.length ? 0 : c].value).withValues(alpha: 0.45);
+}
+
+Color hlSolid(int c) => hlColor(c).withValues(alpha: 1);
+
+String hlName(int c) {
+  final cs = Store.i.colors;
+  return cs[c < 0 || c >= cs.length ? 0 : c].name;
+}
+
 class Store extends ChangeNotifier {
   Store._();
   static final i = Store._();
@@ -49,6 +71,8 @@ class Store extends ChangeNotifier {
   final List<Kept> bookmarks = [];
   final List<Kept> highlights = [];
   final List<Kept> quotes = [];
+  final List<Kept> notes = [];
+  final List<HlColor> colors = [HlColor(0xFFD54F, 'أصفر'), HlColor(0xEF5350, 'أحمر'), HlColor(0x66BB6A, 'أخضر')];
 
   ThemeMode get mode => themeMode == 1 ? ThemeMode.light : themeMode == 2 ? ThemeMode.dark : ThemeMode.system;
 
@@ -74,6 +98,13 @@ class Store extends ChangeNotifier {
       bookmarks.addAll(_list('bookmarks'));
       highlights.addAll(_list('highlights'));
       quotes.addAll(_list('quotes'));
+      notes.addAll(_list('notes'));
+      final cs = jsonDecode(p.getString('colors') ?? '[]') as List;
+      if (cs.length >= 3) {
+        colors
+          ..clear()
+          ..addAll(cs.map((e) => HlColor(((e as Map)['v'] as num).toInt(), '${e['n']}')));
+      }
     } catch (_) {}
   }
 
@@ -101,6 +132,8 @@ class Store extends ChangeNotifier {
     p.setString('bookmarks', jsonEncode(bookmarks.map((e) => e.toJson()).toList()));
     p.setString('highlights', jsonEncode(highlights.map((e) => e.toJson()).toList()));
     p.setString('quotes', jsonEncode(quotes.map((e) => e.toJson()).toList()));
+    p.setString('notes', jsonEncode(notes.map((e) => e.toJson()).toList()));
+    p.setString('colors', jsonEncode([for (final c in colors) {'v': c.value, 'n': c.name}]));
   }
 
   void changed() {
@@ -169,7 +202,29 @@ class Store extends ChangeNotifier {
     return k;
   }
 
+  Kept addNote(int book, int pg, String text, String note, String label) {
+    final k = Kept(id: newId(), book: book, pg: pg, text: text.trim(), label: label, at: now(), note: note.trim());
+    notes.insert(0, k);
+    changed();
+    return k;
+  }
+
+  /// Adds a colour (at most six). Returns its number, or -1.
+  int addColor(int value, String name) {
+    if (colors.length >= 6) return -1;
+    colors.add(HlColor(value, name.trim().isEmpty ? 'لون ${colors.length + 1}' : name.trim()));
+    changed();
+    return colors.length - 1;
+  }
+
+  void renameColor(int c, String name) {
+    if (c < 0 || c >= colors.length || name.trim().isEmpty) return;
+    colors[c].name = name.trim();
+    changed();
+  }
+
   void remove(Kept k) {
+    notes.remove(k);
     bookmarks.remove(k);
     highlights.remove(k);
     quotes.remove(k);
@@ -195,6 +250,8 @@ class Store extends ChangeNotifier {
         'bookmarks': bookmarks.map((e) => e.toJson()).toList(),
         'highlights': highlights.map((e) => e.toJson()).toList(),
         'quotes': quotes.map((e) => e.toJson()).toList(),
+        'notes': notes.map((e) => e.toJson()).toList(),
+        'colors': [for (final c in colors) {'v': c.value, 'n': c.name}],
       });
 
   /// Adds a copy made by [backup] (nothing already here is removed).
@@ -214,6 +271,11 @@ class Store extends ChangeNotifier {
     addAll(bookmarks, 'bookmarks');
     addAll(highlights, 'highlights');
     addAll(quotes, 'quotes');
+    addAll(notes, 'notes');
+    final cs = j['colors'] as List? ?? const [];
+    for (var i = colors.length; i < cs.length && i < 6; i++) {
+      colors.add(HlColor(((cs[i] as Map)['v'] as num).toInt(), '${cs[i]['n']}'));
+    }
     (j['lastPg'] as Map<String, dynamic>? ?? {}).forEach((k, v) => lastPg.putIfAbsent(int.parse(k), () => (v as num).toInt()));
     for (final r in (j['recent'] as List? ?? const [])) {
       final b = (r as num).toInt();

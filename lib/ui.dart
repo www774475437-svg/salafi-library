@@ -19,9 +19,6 @@ const gold = Color(0xFFA9832F);
 const bookFont = 'Amiri';
 const uiFont = 'Tajawal';
 
-/// Highlight colours: yellow, red, green.
-const hlColors = [Color(0x88FFD54F), Color(0x66EF5350), Color(0x6666BB6A)];
-const hlNames = ['أصفر', 'أحمر', 'أخضر'];
 
 ThemeData buildTheme(Brightness b) {
   final dark = b == Brightness.dark;

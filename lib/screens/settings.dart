@@ -6,6 +6,7 @@ import '../catalog.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../update.dart';
+import 'colors.dart';
 import 'reader.dart' show showReadingLook;
 
 class SettingsScreen extends StatelessWidget {
@@ -39,6 +40,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               _Row(icon: Icons.text_fields_rounded, title: 'الخط ولون الصفحة', sub: 'حجم الخط ${Ar.num(st.fontSize.round())} · ${st.readFont == 'Amiri' ? 'أميري' : 'تجوّل'}', onTap: () => showReadingLook(context)),
+              _Row(icon: Icons.palette_outlined, title: 'ألوان التظليل وأسماؤها', sub: [for (final c in st.colors) c.name].join('، '), onTap: () => showColorsSheet(context)),
               SwitchListTile(
                 secondary: const _Ico(Icons.font_download_rounded),
                 title: const Text('إظهار التشكيل في الكتب'),

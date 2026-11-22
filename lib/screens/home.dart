@@ -2,11 +2,13 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../catalog.dart';
+import '../fawaid.dart';
 import '../main.dart' show shellTab;
 import '../store.dart';
 import '../ui.dart';
 import '../update.dart';
 import 'book.dart';
+import 'fawaid.dart';
 import 'reader.dart';
 import 'scholar.dart';
 
@@ -61,6 +63,10 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (Fawaid.today() != null) ...[
+              SectionTitle('الفوائد المنتقاة', onMore: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FawaidScreen()))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: FaidaCard(Fawaid.today()!, title: 'فائدة اليوم')),
+            ],
             if (recent.isNotEmpty) ...[
               const SectionTitle('أكمل القراءة'),
               SizedBox(
@@ -94,7 +100,7 @@ class HomeScreen extends StatelessWidget {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: hlColors[lastHl.color], borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: hlColor(lastHl.color), borderRadius: BorderRadius.circular(6)),
                       child: Text(lastHl.text, maxLines: 5, overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontFamily: bookFont, fontSize: 18, height: 1.8, color: C.ink(context))),
                     ),

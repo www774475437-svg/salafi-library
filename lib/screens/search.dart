@@ -229,7 +229,7 @@ class HitCard extends StatelessWidget {
     for (final (a, b) in ranges) {
       if (a < last || b > text.length) continue;
       spans.add(TextSpan(text: text.substring(last, a)));
-      spans.add(TextSpan(text: text.substring(a, b), style: TextStyle(backgroundColor: hlColors[0], fontWeight: FontWeight.w700)));
+      spans.add(TextSpan(text: text.substring(a, b), style: TextStyle(backgroundColor: hlColor(0), fontWeight: FontWeight.w700)));
       last = b;
     }
     spans.add(TextSpan(text: text.substring(last)));
