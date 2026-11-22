@@ -13,12 +13,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Books details kept from earlier builds
+        uses: actions/cache@v4
+        with:
+          path: bookcache/meta
+          key: catalog-${{ github.run_id }}
+          restore-keys: catalog-
       - name: Books list from «تراث»
         run: python3 tool/build_catalog.py
       - uses: actions/upload-artifact@v4
         with:
           name: catalog
           path: assets/data/catalog.json
+
+  books:
+    needs: catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog
+          path: assets/data
+      - name: Books kept from earlier builds
+        uses: actions/cache@v4
+        with:
+          path: bookcache
+          key: books-${{ github.run_id }}
+          restore-keys: books-
+      - name: Full books inside the library (from «تراث», once per book)
+        run: python3 tool/fetch_books.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-books
+          path: site_books
+          compression-level: 6
 
   check:
     needs: catalog
@@ -78,7 +107,7 @@ jobs:
           files: salafi-library.apk
 
   website:
-    needs: check
+    needs: [check, books]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,6 +128,10 @@ jobs:
         run: flutter build web --release --no-web-resources-cdn --base-href /salafi-library/ --dart-define=BUILD=${{ github.run_number }}
       - name: Extra pages
         run: cp -r tool/web_pages/. build/web/
+      - uses: actions/download-artifact@v4
+        with:
+          name: site-books
+          path: build/web/books
       - name: Publish website (gh-pages branch)
         uses: peaceiris/actions-gh-pages@v4
         with:

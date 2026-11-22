@@ -7,12 +7,17 @@ import 'screens/library.dart';
 import 'screens/search.dart';
 import 'screens/settings.dart';
 import 'store.dart';
+import 'turath.dart';
 import 'ui.dart';
 import 'update.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Future.wait([Catalog.load(), Store.i.load()]);
+  await Future.wait([
+    Catalog.load(),
+    Store.i.load(),
+    Turath.loadHosted().timeout(const Duration(seconds: 4), onTimeout: () {}),
+  ]);
   runApp(const SalafiLibraryApp());
   Updates.check();
 }

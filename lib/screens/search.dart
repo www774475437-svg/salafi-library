@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../catalog.dart';
@@ -78,7 +79,9 @@ class _SearchScreenState extends State<SearchScreen> {
           try {
             await Turath.search(q, _chosen.first.authorId);
           } catch (_) {
-            _error = 'تعذّر البحث، تأكّد من الإنترنت. ويمكنك البحث في كتبك المحمّلة بلا إنترنت.';
+            _error = kIsWeb
+                ? 'البحث في كتب «تراث» لا يعمل من الموقع حاليًا، وهو يعمل في تطبيق أندرويد.'
+                : 'تعذّر البحث، تأكّد من الإنترنت. ويمكنك البحث في كتبك المحمّلة بلا إنترنت.';
           }
         }
         setState(() => _hits.addAll(merged));

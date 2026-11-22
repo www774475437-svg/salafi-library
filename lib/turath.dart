@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'files/files.dart';
 import 'store.dart';
 import 'ui.dart' show Ar;
+import 'update.dart' show siteUrl;
 
 class Heading {
   final String title;
@@ -99,6 +102,49 @@ class Turath {
     return utf8.decode(r.bodyBytes);
   }
 
+  // ---- books kept inside the library itself (our own site) ----
+  static const chunk = 40;
+  static final Set<int> hosted = {};
+  static final Map<String, List<dynamic>> _chunks = {};
+
+  static String get booksBase => kIsWeb ? Uri.base.resolve('books/').toString() : '${siteUrl}books/';
+
+  /// Which books the library keeps itself. Remembered for when there is no internet.
+  static Future<void> loadHosted() async {
+    SharedPreferences? p;
+    try {
+      p = await SharedPreferences.getInstance();
+      hosted.addAll((jsonDecode(p.getString('hosted') ?? '[]') as List).map((e) => (e as num).toInt()));
+    } catch (_) {}
+    try {
+      final list = (jsonDecode(await _get('${booksBase}hosted.json', timeout: const Duration(seconds: 12))) as List)
+          .map((e) => (e as num).toInt())
+          .toSet();
+      hosted
+        ..clear()
+        ..addAll(list);
+      p?.setString('hosted', jsonEncode(list.toList()));
+    } catch (_) {}
+  }
+
+  static Future<List<dynamic>> _chunk(int id, int k) async {
+    final key = '$id:$k';
+    final c = _chunks[key];
+    if (c != null) return c;
+    final rows = jsonDecode(await _get('$booksBase$id/p$k.json', timeout: const Duration(seconds: 40))) as List<dynamic>;
+    if (_chunks.length > 30) _chunks.clear();
+    return _chunks[key] = rows;
+  }
+
+  static Future<String> _indexRaw(int id) async {
+    if (hosted.contains(id)) {
+      try {
+        return await _get('$booksBase$id/i.json');
+      } catch (_) {}
+    }
+    return _get('$api/book?id=$id&include=indexes&ver=3');
+  }
+
   static Future<BookIndex> index(int id) async {
     final c = _indexes[id];
     if (c != null) return c;
@@ -108,8 +154,7 @@ class Turath {
         return _indexes[id] = BookIndex.parse(local);
       } catch (_) {}
     }
-    final raw = await _get('$api/book?id=$id&include=indexes&ver=3');
-    return _indexes[id] = BookIndex.parse(raw);
+    return _indexes[id] = BookIndex.parse(await _indexRaw(id));
   }
 
   static Future<RawPage> page(int id, int pg) async {
@@ -119,6 +164,13 @@ class Turath {
         final p = all[pg - 1];
         return RawPage(p[0] as String, p[1] as int, p[2] as String);
       }
+    }
+    if (hosted.contains(id)) {
+      try {
+        final rows = await _chunk(id, (pg - 1) ~/ chunk);
+        final r = rows[(pg - 1) % chunk] as List<dynamic>;
+        return RawPage('${r[0]}', (r[1] as num).toInt(), '${r[2]}');
+      } catch (_) {}
     }
     final key = '$id:$pg';
     final c = _pages[key];
@@ -138,6 +190,12 @@ class Turath {
 
   /// Downloads the whole book for reading without internet.
   static Future<void> download(int id, void Function(double) progress) async {
+    if (hosted.contains(id)) {
+      try {
+        await _downloadHosted(id, progress);
+        return;
+      } catch (_) {}
+    }
     final idx = await _get('$api/book?id=$id&include=indexes&ver=3');
     final req = http.Request('GET', Uri.parse('$files/$id.json'));
     final res = await _client.send(req).timeout(const Duration(seconds: 40));
@@ -152,6 +210,27 @@ class Turath {
     // make sure it is a real book file before keeping it
     final head = utf8.decode(bytes.length > 2000 ? bytes.sublist(bytes.length - 2000) : bytes, allowMalformed: true);
     if (!head.contains('}')) throw Exception('bad file');
+    await BookFiles.write(id, bytes, idx);
+    _indexes.remove(id);
+    Store.i.setDownloaded(id, true);
+  }
+
+  /// From our own site: the index, then the pages part by part.
+  static Future<void> _downloadHosted(int id, void Function(double) progress) async {
+    final idx = await _get('$booksBase$id/i.json');
+    final count = ((jsonDecode(idx) as Map<String, dynamic>)['count'] as num?)?.toInt() ?? 0;
+    if (count == 0) throw Exception('empty');
+    final parts = (count + chunk - 1) ~/ chunk;
+    final pages = <Map<String, Object>>[];
+    for (var k = 0; k < parts; k++) {
+      final rows = jsonDecode(await _get('$booksBase$id/p$k.json', timeout: const Duration(seconds: 60))) as List<dynamic>;
+      for (final r in rows) {
+        final x = r as List<dynamic>;
+        pages.add({'vol': '${x[0]}', 'page': (x[1] as num).toInt(), 'text': '${x[2]}'});
+      }
+      progress((k + 1) / parts);
+    }
+    final bytes = utf8.encode(jsonEncode({'pages': pages}));
     await BookFiles.write(id, bytes, idx);
     _indexes.remove(id);
     Store.i.setDownloaded(id, true);

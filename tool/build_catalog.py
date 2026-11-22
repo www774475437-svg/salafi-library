@@ -32,7 +32,7 @@ SCHOLARS = [
 
 _lock = threading.Lock()
 _next = [0.0]
-GAP = 0.25  # at most ~4 requests a second, so «تراث» does not refuse us
+GAP = 0.6  # at most ~2 requests a second, so «تراث» does not refuse us
 
 
 def _wait_turn():
@@ -60,12 +60,32 @@ def get(url, tries=8):
             time.sleep(3 + i * 3)
 
 
+META = Path("bookcache/meta")
+START = time.time()
+
+
 def book_meta(bid):
+    f = META / f"{bid}.json"
+    if f.exists():
+        try:
+            return json.loads(f.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            pass
+    if time.time() - START > 20 * 60:
+        return None  # comes with the next build (the rest are kept in the cache)
     try:
         j = get(f"https://api.turath.io/book?id={bid}&include=indexes&ver=3")
     except Exception as e:  # noqa: BLE001
         print("skip book", bid, e)
         return None
+    out = _meta(bid, j)
+    if out:
+        META.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def _meta(bid, j):
     m = j.get("meta") or {}
     ix = j.get("indexes") or {}
     pages = len(ix.get("page_map") or [])
@@ -103,7 +123,7 @@ def main():
             out.append({"key": key, "name": name, "short": short, "honorific": hon, "death": death, "authorId": 0, "books": []})
             continue
         ids = list(dict.fromkeys(a.get("books") or []))
-        with ThreadPoolExecutor(3) as ex:
+        with ThreadPoolExecutor(2) as ex:
             books = [b for b in ex.map(book_meta, ids) if b]
         for b in books:
             b["catName"] = cats.get(b["cat"], "")

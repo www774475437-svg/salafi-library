@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -288,7 +289,11 @@ class _Page extends StatelessWidget {
         if (snap.hasError || snap.data == null) {
           return Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const EmptyNote(Icons.wifi_off_rounded, 'تعذّر فتح الصفحة. تأكّد من الإنترنت، أو حمّل الكتاب ليُقرأ بلا إنترنت.'),
+              EmptyNote(
+                  Icons.wifi_off_rounded,
+                  kIsWeb && !Turath.hosted.contains(state.b.id)
+                      ? 'هذا الكتاب لم يُضف إلى الموقع بعد، ويُضاف قريبًا بإذن الله. ويمكنك قراءته الآن في تطبيق أندرويد.'
+                      : 'تعذّر فتح الصفحة. تأكّد من الإنترنت، أو حمّل الكتاب ليُقرأ بلا إنترنت.'),
               TextButton(onPressed: () => state.retry(pg), child: const Text('حاول مرة أخرى')),
             ]),
           );
