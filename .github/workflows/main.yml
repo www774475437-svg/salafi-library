@@ -1,0 +1,107 @@
+name: Build APK and website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Books list from «تراث»
+        run: python3 tool/build_catalog.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catalog
+          path: assets/data/catalog.json
+
+  check:
+    needs: catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog
+          path: assets/data
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Check the code
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib
+
+  android:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog
+          path: assets/data
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Create Android platform files
+        run: flutter create --org com.salafilibrary --project-name salafi_library --platforms android .
+      - name: Fixed signing key
+        run: |
+          cp signing/release.jks android/app/release.jks
+          printf "storeFile=release.jks\nstorePassword=salafilib2026\nkeyAlias=release\nkeyPassword=salafilib2026\n" > android/key.properties
+      - name: Patch Android (name, permission, signing)
+        run: python3 tool/patch_android.py
+      - run: flutter pub get
+      - name: App icon
+        run: dart run flutter_launcher_icons
+      - name: Build APK
+        run: flutter build apk --release --target-platform android-arm,android-arm64 --build-number=${{ github.run_number }} --dart-define=BUILD=${{ github.run_number }}
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk salafi-library.apk
+      - name: Publish as latest release (direct download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: مكتبة العلماء السلفية — نسخة ${{ github.run_number }}
+          make_latest: true
+          files: salafi-library.apk
+
+  website:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog
+          path: assets/data
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Create web platform files
+        run: flutter create --org com.salafilibrary --project-name salafi_library --platforms web .
+      - run: flutter pub get
+      - name: Web title, description and icons
+        run: python3 tool/patch_web.py
+      - name: Build website
+        run: flutter build web --release --no-web-resources-cdn --base-href /salafi-library/ --dart-define=BUILD=${{ github.run_number }}
+      - name: Extra pages
+        run: cp -r tool/web_pages/. build/web/
+      - name: Publish website (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/web
+          force_orphan: true
