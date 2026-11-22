@@ -172,7 +172,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           Expanded(
             child: total > 1
                 ? Slider(
-                    value: pg.toDouble().clamp(1, total.toDouble()),
+                    value: pg.toDouble().clamp(1.0, total.toDouble()),
                     min: 1,
                     max: total.toDouble(),
                     onChanged: (v) => setState(() => pg = v.round()),
