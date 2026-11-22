@@ -11,7 +11,11 @@ class Faida {
   final String source;
   final bool raw; // the scholar is quoting someone else: shared without «قال …»
   final String by; // who chose it
-  const Faida(this.scholar, this.text, this.source, this.raw, this.by);
+  final int book; // the library's book that holds it, 0 when not tied yet
+  final int pg; // its page there
+  final String was; // the source as first written, when it had to be corrected
+  final int post; // number of the post it was chosen in
+  const Faida(this.scholar, this.text, this.source, this.raw, this.by, {this.book = 0, this.pg = 0, this.was = '', this.post = 0});
 
   String get shareText => raw
       ? '$text،.🪶\n\n[📓$source]'
@@ -21,6 +25,8 @@ class Faida {
 class Fawaid {
   static final List<Faida> all = [];
   static final Map<String, String> credit = {}; // scholar key → who chose them
+  static final List<Map<String, dynamic>> pending = []; // not found in the books yet (developer only)
+  static String channel = '';
 
   static Future<void> load() async {
     try {
@@ -38,8 +44,16 @@ class Fawaid {
         for (final it in (m['items'] as List? ?? const [])) {
           final t = '${(it as Map)['t'] ?? ''}'.trim();
           if (t.isEmpty || !seen.add(t)) continue; // no repeats
-          all.add(Faida(s, t, '${it['s'] ?? ''}'.trim(), it['raw'] == true, by));
+          all.add(Faida(s, t, '${it['s'] ?? ''}'.trim(), it['raw'] == true, by,
+              book: (it['b'] as num?)?.toInt() ?? 0,
+              pg: (it['p'] as num?)?.toInt() ?? 0,
+              was: '${it['was'] ?? ''}',
+              post: (it['n'] as num?)?.toInt() ?? 0));
         }
+        if ('${m['url'] ?? ''}'.contains('t.me/')) channel = '${m['url']}';
+      }
+      for (final x in (j['pending'] as List? ?? const [])) {
+        pending.add(Map<String, dynamic>.from(x as Map));
       }
     } catch (_) {}
   }

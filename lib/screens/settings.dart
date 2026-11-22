@@ -7,6 +7,7 @@ import '../store.dart';
 import '../ui.dart';
 import '../update.dart';
 import 'colors.dart';
+import 'fawaid.dart' show PendingFawaidScreen;
 import 'reader.dart' show showReadingLook;
 
 class SettingsScreen extends StatelessWidget {
@@ -62,7 +63,13 @@ class SettingsScreen extends StatelessWidget {
             ]),
             _Group(title: 'عن التطبيق', children: [
               _Row(icon: Icons.menu_book_rounded, title: 'مكتبة العلماء السلفية', sub: 'نسخة ${Ar.num(appBuild)} · ${Ar.books(Catalog.totalBooks)}'),
-              _Row(icon: Icons.person_rounded, title: 'المطوّر', sub: developerName),
+              _Row(
+                icon: Icons.person_rounded,
+                title: 'المطوّر',
+                sub: developerName,
+                // hidden door: a long press opens the developer's review page
+                onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PendingFawaidScreen())),
+              ),
               _Row(icon: Icons.send_rounded, title: 'تواصل مع المطوّر', sub: 'تيليجرام', onTap: () => openLink(contactUrl)),
               if (kIsWeb)
                 _Row(icon: Icons.android_rounded, title: 'تطبيق أندرويد', sub: 'للقراءة والبحث بلا إنترنت', onTap: () => openLink(apkUrl))
@@ -137,7 +144,8 @@ class _Row extends StatelessWidget {
   final String title;
   final String? sub;
   final VoidCallback? onTap;
-  const _Row({required this.icon, required this.title, this.sub, this.onTap});
+  final VoidCallback? onLongPress;
+  const _Row({required this.icon, required this.title, this.sub, this.onTap, this.onLongPress});
   @override
   Widget build(BuildContext context) => ListTile(
         leading: _Ico(icon),
@@ -145,5 +153,6 @@ class _Row extends StatelessWidget {
         subtitle: sub == null ? null : Text(sub!),
         trailing: onTap == null ? null : Icon(Icons.chevron_left_rounded, color: C.muted(context)),
         onTap: onTap,
+        onLongPress: onLongPress,
       );
 }

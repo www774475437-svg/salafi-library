@@ -8,11 +8,17 @@ import '../fawaid.dart';
 import '../text.dart';
 import '../turath.dart';
 import '../ui.dart';
+import '../update.dart' show openLink;
 import 'quote_image.dart';
 import 'reader.dart';
 
 /// Finds the saying inside the scholar's books and opens it there.
 Future<void> openFaidaPlace(BuildContext context, Faida f) async {
+  // already tied to its page: straight into the reader, no searching
+  if (f.book > 0 && f.pg > 0) {
+    openReader(context, Catalog.byId[f.book] ?? bookOrStub(f.book, f.source, f.scholar.authorId), f.pg);
+    return;
+  }
   // the longest run of words with no punctuation is the safest thing to look for
   final runs = stripHarakat(f.text).split(RegExp('[^ء-ي\\s]+')).map((r) => r.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList()).toList()
     ..sort((a, b) => b.length.compareTo(a.length));
@@ -192,6 +198,59 @@ class FaidaCard extends StatelessWidget {
           btn(Icons.image_outlined, 'صورة', () => showQuoteImage(context, text: f.text, scholar: f.raw ? '' : '${f.scholar.name} ${f.scholar.honorific}', source: f.source)),
         ]),
       ]),
+    );
+  }
+}
+
+/// Developer only: posts whose words were not found in the books, and the
+/// ones whose written page had to be corrected.
+class PendingFawaidScreen extends StatelessWidget {
+  const PendingFawaidScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final fixed = Fawaid.all.where((f) => f.was.isNotEmpty).toList();
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('مراجعة الفوائد (للمطوّر)'),
+          bottom: TabBar(tabs: [
+            Tab(text: 'لم تُطابق (${Ar.num(Fawaid.pending.length)})'),
+            Tab(text: 'صُحّحت صفحتها (${Ar.num(fixed.length)})'),
+          ]),
+        ),
+        body: TabBarView(children: [
+          Fawaid.pending.isEmpty
+              ? const EmptyNote(Icons.task_alt_rounded, 'كل الفوائد مربوطة بمواضعها.')
+              : ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 30), children: [
+                  for (final p in Fawaid.pending)
+                    SoftCard(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      onTap: Fawaid.channel.isEmpty ? null : () => openLink('${Fawaid.channel}/${p['id']}'),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('${p['a'] ?? ''}…', style: TextStyle(fontFamily: bookFont, fontSize: 17.5, height: 1.7, color: C.ink(context))),
+                        const SizedBox(height: 6),
+                        Text('📓 ${p['s'] ?? ''} · منشور ${Ar.num((p['id'] as num).toInt())}', style: TextStyle(fontSize: 13, color: C.muted(context))),
+                      ]),
+                    ),
+                ]),
+          fixed.isEmpty
+              ? const EmptyNote(Icons.task_alt_rounded, 'لم يُصحَّح مصدر.')
+              : ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 30), children: [
+                  for (final f in fixed)
+                    SoftCard(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      onTap: () => openFaidaPlace(context, f),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(f.text, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: bookFont, fontSize: 17.5, height: 1.7, color: C.ink(context))),
+                        const SizedBox(height: 6),
+                        Text('في القناة: ${f.was}', style: TextStyle(fontSize: 13, color: C.muted(context))),
+                        Text('الصحيح: ${f.source}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: C.accent(context))),
+                      ]),
+                    ),
+                ]),
+        ]),
+      ),
     );
   }
 }
