@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-HOSTED = ["ibn-alqayyim"]  # scholars whose books are kept in the library (more later)
+HOSTED = ["ibn-alqayyim", "ibn-taymiyya"]  # scholars whose books are kept in the library (more later)
 CHUNK = 40
 CACHE = Path("bookcache")
 OUT = Path("site_books")
