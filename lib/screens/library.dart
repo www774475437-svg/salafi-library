@@ -216,6 +216,15 @@ class _KeptCard extends StatelessWidget {
           if (kind != 2) ...[
             IconButton(
               visualDensity: VisualDensity.compact,
+              tooltip: Store.i.isReview(k.id) ? 'أخرجه من المراجعة' : 'احفظ للمراجعة',
+              icon: Icon(Icons.autorenew_rounded, size: 20, color: Store.i.isReview(k.id) ? C.accent(context) : null),
+              onPressed: () {
+                Store.i.toggleReview(k);
+                toast(context, Store.i.isReview(k.id) ? 'حُفظ للمراجعة، ستجده في «احفظ وراجِع»' : 'أُخرج من المراجعة');
+              },
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
               tooltip: 'انسخ مع المصدر',
               icon: const Icon(Icons.copy_rounded, size: 20),
               onPressed: () {

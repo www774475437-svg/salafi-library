@@ -33,6 +33,9 @@ class Kept {
 /// Subjects a quote can be filed under.
 const quoteTopics = ['العقيدة', 'الفقه', 'التزكية', 'التفسير', 'الحديث', 'السيرة والتاريخ', 'الآداب والأخلاق', 'طلب العلم', 'الرقائق والمواعظ', 'الأذكار والدعاء', 'الأسرة والتربية', 'الدعوة والمنهج'];
 
+/// Days between two reviews of a kept item, as it is remembered better.
+const reviewDays = [1, 3, 7, 14, 30, 90, 180];
+
 /// A highlight colour the reader can name («طرائف», «فوائد»…).
 class HlColor {
   int value; // 0xRRGGBB
@@ -86,6 +89,8 @@ class Store extends ChangeNotifier {
   final List<Kept> highlights = [];
   final List<Kept> quotes = [];
   final List<Kept> notes = [];
+  /// Items put to review: kept id → [stage, due time in ms].
+  final Map<String, List<int>> review = {};
   final List<HlColor> colors = [HlColor(0xFFD54F, 'أصفر'), HlColor(0xEF5350, 'أحمر'), HlColor(0x66BB6A, 'أخضر')];
 
   ThemeMode get mode => themeMode == 1 ? ThemeMode.light : themeMode == 2 ? ThemeMode.dark : ThemeMode.system;
@@ -119,6 +124,10 @@ class Store extends ChangeNotifier {
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
       favFawaid.addAll((jsonDecode(p.getString('favFawaid') ?? '[]') as List).map((e) => '$e'));
       readLater.addAll((jsonDecode(p.getString('readLater') ?? '[]') as List).map((e) => (e as num).toInt()));
+      (jsonDecode(p.getString('review') ?? '{}') as Map<String, dynamic>).forEach((k, v) {
+        final l = (v as List).map((e) => (e as num).toInt()).toList();
+        if (l.length == 2) review[k] = l;
+      });
       bookmarks.addAll(_list('bookmarks'));
       highlights.addAll(_list('highlights'));
       quotes.addAll(_list('quotes'));
@@ -153,6 +162,7 @@ class Store extends ChangeNotifier {
     p.setBool('keepOn', keepOn);
     p.setBool('volKeys', volKeys);
     p.setString('readLater', jsonEncode(readLater));
+    p.setString('review', jsonEncode(review));
     p.setString('pdfOffset', jsonEncode(pdfOffset));
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
     p.setString('recent', jsonEncode(recent));
@@ -269,7 +279,38 @@ class Store extends ChangeNotifier {
     changed();
   }
 
+  bool isReview(String id) => review.containsKey(id);
+
+  /// Puts a kept item to review (or takes it out). New items are due tomorrow.
+  void toggleReview(Kept k) {
+    if (review.remove(k.id) == null) review[k.id] = [0, now() + reviewDays[0] * 86400000];
+    changed();
+  }
+
+  /// The kept items whose review is due now, oldest due first.
+  List<Kept> dueReviews() {
+    final all = [...highlights, ...quotes, ...notes];
+    final t = now();
+    final out = <MapEntry<Kept, int>>[];
+    for (final k in all) {
+      final r = review[k.id];
+      if (r != null && r[1] <= t && k.text.isNotEmpty) out.add(MapEntry(k, r[1]));
+    }
+    out.sort((a, b) => a.value.compareTo(b.value));
+    return [for (final e in out) e.key];
+  }
+
+  /// After a review: remembered moves to a later stage, forgotten starts again.
+  void answerReview(String id, bool remembered) {
+    final r = review[id];
+    if (r == null) return;
+    final stage = remembered ? (r[0] + 1).clamp(0, reviewDays.length - 1) : 0;
+    review[id] = [stage, now() + reviewDays[stage] * 86400000];
+    changed();
+  }
+
   void remove(Kept k) {
+    review.remove(k.id);
     notes.remove(k);
     bookmarks.remove(k);
     highlights.remove(k);
@@ -334,6 +375,7 @@ class Store extends ChangeNotifier {
         'quotes': quotes.map((e) => e.toJson()).toList(),
         'notes': notes.map((e) => e.toJson()).toList(),
         'colors': [for (final c in colors) {'v': c.value, 'n': c.name}],
+        'review': review,
       });
 
   /// Adds a copy made by [backup] (nothing already here is removed).
@@ -354,6 +396,10 @@ class Store extends ChangeNotifier {
     addAll(highlights, 'highlights');
     addAll(quotes, 'quotes');
     addAll(notes, 'notes');
+    (j['review'] as Map<String, dynamic>? ?? {}).forEach((k, v) {
+      final l = (v as List).map((e) => (e as num).toInt()).toList();
+      if (!review.containsKey(k) && l.length == 2) review[k] = l;
+    });
     final cs = j['colors'] as List? ?? const [];
     for (var i = colors.length; i < cs.length && i < maxColors; i++) {
       colors.add(HlColor(((cs[i] as Map)['v'] as num).toInt(), '${cs[i]['n']}'));

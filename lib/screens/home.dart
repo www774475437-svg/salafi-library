@@ -10,6 +10,7 @@ import '../update.dart';
 import 'book.dart';
 import 'fawaid.dart';
 import 'more.dart';
+import 'review.dart';
 import 'reader.dart';
 import 'scholar.dart';
 
@@ -130,6 +131,7 @@ class HomeScreen extends StatelessWidget {
                     );
                 return Wrap(spacing: 10, runSpacing: 10, children: [
                   tile(Icons.forum_outlined, 'فوائد القرّاء', 'ما ينشره القرّاء من اقتباساتهم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadersFawaidScreen()))),
+                  tile(Icons.autorenew_rounded, 'احفظ وراجِع', Store.i.dueReviews().isEmpty ? 'مراجعة ما حفظته في أوقات متباعدة' : 'لديك ${Ar.num(Store.i.dueReviews().length)} للمراجعة الآن', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewScreen()))),
                   tile(Icons.school_outlined, 'منهج طالب العلم', 'كتب مرتّبة بالتدرّج', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MinhajScreen()))),
                   tile(Icons.shuffle_rounded, 'افتح لي صفحة', 'صفحة عشوائية من المكتبة', () => openRandomPage(context)),
                 ]);
