@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
 
-/// The highlight colours: rename each one, or add a new one (six at most).
+/// The highlight colours: rename each one, remove it, or add a new one.
 void showColorsSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -33,16 +33,38 @@ void showColorsSheet(BuildContext context) {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
-                          key: ValueKey('c$i'),
+                          key: ValueKey('c${st.colors[i].value}'),
                           initialValue: st.colors[i].name,
                           maxLength: 14,
                           decoration: const InputDecoration(isDense: true, counterText: '', hintText: 'اسم اللون'),
                           onChanged: (v) => st.renameColor(i, v),
                         ),
                       ),
+                      if (st.colors.length > 1)
+                        IconButton(
+                          tooltip: 'احذف هذا اللون',
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          onPressed: () async {
+                            final used = st.highlights.where((h) => h.color == i).length;
+                            if (used > 0) {
+                              final ok = await showDialog<bool>(
+                                context: c,
+                                builder: (d) => AlertDialog(
+                                  content: Text('في هذا اللون ${Ar.num(used)} مظلّلة. إن حذفته انتقلت إلى اللون الأول «${st.colors.first.name}» ولا تُحذف.'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
+                                    TextButton(onPressed: () => Navigator.pop(d, true), child: const Text('احذف اللون')),
+                                  ],
+                                ),
+                              );
+                              if (ok != true) return;
+                            }
+                            st.removeColor(i);
+                          },
+                        ),
                     ]),
                   ),
-                if (st.colors.length < 6 && unused.isNotEmpty) ...[
+                if (st.colors.length < maxColors && unused.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text('أضف لونًا', style: TextStyle(fontWeight: FontWeight.w700, color: C.ink(c))),
                   const SizedBox(height: 8),
@@ -59,7 +81,7 @@ void showColorsSheet(BuildContext context) {
                       ),
                   ]),
                 ] else
-                  Text('وصلت إلى ستة ألوان، وهو الحد الأعلى.', style: TextStyle(fontSize: 13, color: C.muted(c))),
+                  Text('وصلت إلى عشرة ألوان، وهو الحد الأعلى. احذف لونًا لتضيف غيره.', style: TextStyle(fontSize: 13, color: C.muted(c))),
               ]),
             ),
           );

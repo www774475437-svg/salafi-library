@@ -13,6 +13,7 @@ import '../turath.dart';
 import '../ui.dart';
 import 'book.dart';
 import 'colors.dart';
+import 'dict.dart';
 import 'pdf.dart';
 import 'quote_image.dart';
 import 'report.dart';
@@ -417,6 +418,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             item(ico(Icons.image_outlined), 'مشاركة صورة',
                 () => showQuoteImage(context, text: text, scholar: b.scholar.collection ? '' : '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),
             item(ico(Icons.sticky_note_2_outlined), 'ملاحظة', () => _addNote(text, lab)),
+            item(ico(Icons.translate_rounded), 'المعجم', () => openDict(context, text)),
             sep(),
             item(ico(Icons.close_rounded), 'إغلاق', clearSel),
           ]),

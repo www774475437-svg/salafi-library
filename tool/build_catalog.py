@@ -53,6 +53,8 @@ COLLECTIONS = [
         23619,  # زاد المسير لابن الجوزي
         8658,   # تفسير ابن أبي حاتم
     ]),
+    # found by name (the first is asked first when a reader looks a word up)
+    ("maajim", "المعاجم", "المعاجم", ["مختار الصحاح", "المصباح المنير", "مقاييس اللغة", "لسان العرب"]),
 ]
 
 _lock = threading.Lock()
@@ -159,6 +161,26 @@ def main():
 
     # sections of books by many authors, each book chosen by its number in «تراث»
     for key, name, short, ids in COLLECTIONS:
+        all_books = data.get("books") or {}
+        if isinstance(all_books, list):
+            all_books = {str(b.get("id")): b for b in all_books}
+        found = []
+        for want in ids:
+            if isinstance(want, int):
+                found.append(want)
+                continue
+            # the book whose name is this one (its edition may follow), the fullest if several
+            cand = [b for b in all_books.values()
+                    if (b.get("name") or "").strip() == want or (b.get("name") or "").startswith(want + " -")
+                    or (b.get("name") or "").startswith(want + " (")]
+            cand.sort(key=lambda b: -(b.get("page_count") or 0))
+            if cand:
+                print("  ", want, "->", cand[0]["id"], cand[0]["name"], "| others:", [(b["id"], b["name"]) for b in cand[1:4]])
+                found.append(int(cand[0]["id"]))
+            else:
+                near = [(b["id"], b["name"]) for b in all_books.values() if want in (b.get("name") or "")][:8]
+                print("  not found:", want, "| near:", near)
+        ids = found
         with ThreadPoolExecutor(2) as ex:
             got = {b["id"]: b for b in ex.map(book_meta, ids) if b}
         books = [got[i] for i in ids if i in got]  # kept in the order written here

@@ -9,7 +9,7 @@ class Kept {
   final int book;
   final int pg;
   final String text; // the highlighted / quoted words (empty for a bookmark)
-  final int color; // 0 yellow, 1 red, 2 green
+  int color; // which of the reader's colours
   final String label; // «ج١ ص٢٥»
   final int at;
   String note;
@@ -41,7 +41,10 @@ class HlColor {
 }
 
 /// Colours offered when the reader adds a new one.
-const hlPalette = [0xFFD54F, 0xEF5350, 0x66BB6A, 0x64B5F6, 0xFFA726, 0xBA68C8, 0xF48FB1, 0x4DB6AC];
+const hlPalette = [0xFFD54F, 0xEF5350, 0x66BB6A, 0x64B5F6, 0xFFA726, 0xBA68C8, 0xF48FB1, 0x4DB6AC, 0xA1887F, 0x90A4AE, 0xDCE775, 0x4DD0E1];
+
+/// How many highlight colours a reader may keep at once.
+const maxColors = 10;
 
 Color hlColor(int c) {
   final cs = Store.i.colors;
@@ -121,7 +124,7 @@ class Store extends ChangeNotifier {
       quotes.addAll(_list('quotes'));
       notes.addAll(_list('notes'));
       final cs = jsonDecode(p.getString('colors') ?? '[]') as List;
-      if (cs.length >= 3) {
+      if (cs.isNotEmpty) {
         colors
           ..clear()
           ..addAll(cs.map((e) => HlColor(((e as Map)['v'] as num).toInt(), '${e['n']}')));
@@ -240,10 +243,24 @@ class Store extends ChangeNotifier {
 
   /// Adds a colour (at most six). Returns its number, or -1.
   int addColor(int value, String name) {
-    if (colors.length >= 6) return -1;
+    if (colors.length >= maxColors) return -1;
     colors.add(HlColor(value, name.trim().isEmpty ? 'لون ${colors.length + 1}' : name.trim()));
     changed();
     return colors.length - 1;
+  }
+
+  /// Removes a colour. Its highlights move to the first colour, the later colours close up.
+  void removeColor(int c) {
+    if (c < 0 || c >= colors.length || colors.length <= 1) return;
+    colors.removeAt(c);
+    for (final h in highlights) {
+      if (h.color == c) {
+        h.color = 0;
+      } else if (h.color > c) {
+        h.color--;
+      }
+    }
+    changed();
   }
 
   void renameColor(int c, String name) {
@@ -338,7 +355,7 @@ class Store extends ChangeNotifier {
     addAll(quotes, 'quotes');
     addAll(notes, 'notes');
     final cs = j['colors'] as List? ?? const [];
-    for (var i = colors.length; i < cs.length && i < 6; i++) {
+    for (var i = colors.length; i < cs.length && i < maxColors; i++) {
       colors.add(HlColor(((cs[i] as Map)['v'] as num).toInt(), '${cs[i]['n']}'));
     }
     (j['lastPg'] as Map<String, dynamic>? ?? {}).forEach((k, v) => lastPg.putIfAbsent(int.parse(k), () => (v as num).toInt()));
