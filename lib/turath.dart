@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart' show GZipDecoder;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -145,13 +146,47 @@ class Turath {
 
   static String get booksBase => kIsWeb ? Uri.base.resolve('books/').toString() : '${siteUrl}books/';
 
+  /// The two stores that hold the books compressed (gzip), each a site of its own.
+  static const stores = [
+    'https://www774475437-svg.github.io/makhzan1-ulama/',
+    'https://www774475437-svg.github.io/makhzan2-ulama/',
+  ];
+  static final Map<int, String> _store = {}; // book → the store that holds it
+
+  /// A file of a kept book, from its store (unpacked here) or from the old place.
+  static Future<String> _file(int id, String name, {Duration timeout = const Duration(seconds: 40)}) async {
+    final st = _store[id];
+    if (st == null) return _get('$booksBase$id/$name', timeout: timeout);
+    final r = await _client.get(Uri.parse('$st$id/$name.gz')).timeout(timeout);
+    if (r.statusCode != 200) throw Exception('HTTP ${r.statusCode}');
+    final b = r.bodyBytes;
+    // some browsers unpack it themselves on the way
+    final packed = b.length > 2 && b[0] == 0x1f && b[1] == 0x8b;
+    return utf8.decode(packed ? GZipDecoder().decodeBytes(b) : b);
+  }
+
   /// Which books the library keeps itself. Remembered for when there is no internet.
   static Future<void> loadHosted() async {
     SharedPreferences? p;
     try {
       p = await SharedPreferences.getInstance();
       hosted.addAll((jsonDecode(p.getString('hosted') ?? '[]') as List).map((e) => (e as num).toInt()));
+      (jsonDecode(p.getString('stores') ?? '{}') as Map<String, dynamic>).forEach((k, v) => _store[int.parse(k)] = '$v');
+      hosted.addAll(_store.keys);
     } catch (_) {}
+    // the stores answer side by side; a store that is silent keeps what was known
+    await Future.wait([
+      for (final st in stores)
+        () async {
+          try {
+            final ids = (jsonDecode(await _get('${st}hosted.json', timeout: const Duration(seconds: 12))) as List).map((e) => (e as num).toInt()).toList();
+            _store.removeWhere((_, v) => v == st);
+            for (final id in ids) {
+              _store[id] = st;
+            }
+          } catch (_) {}
+        }(),
+    ]);
     try {
       final list = (jsonDecode(await _get('${booksBase}hosted.json', timeout: const Duration(seconds: 12))) as List)
           .map((e) => (e as num).toInt())
@@ -161,13 +196,15 @@ class Turath {
         ..addAll(list);
       p?.setString('hosted', jsonEncode(list.toList()));
     } catch (_) {}
+    hosted.addAll(_store.keys);
+    p?.setString('stores', jsonEncode(_store.map((k, v) => MapEntry('$k', v))));
   }
 
   static Future<List<dynamic>> _chunk(int id, int k) async {
     final key = '$id:$k';
     final c = _chunks[key];
     if (c != null) return c;
-    final rows = jsonDecode(await _get('$booksBase$id/p$k.json', timeout: const Duration(seconds: 40))) as List<dynamic>;
+    final rows = jsonDecode(await _file(id, 'p$k.json')) as List<dynamic>;
     if (_chunks.length > 30) _chunks.clear();
     return _chunks[key] = rows;
   }
@@ -175,7 +212,7 @@ class Turath {
   static Future<String> _indexRaw(int id) async {
     if (hosted.contains(id)) {
       try {
-        return await _get('$booksBase$id/i.json');
+        return await _file(id, 'i.json');
       } catch (_) {}
     }
     return _get('$api/book?id=$id&include=indexes&ver=3');
@@ -253,13 +290,13 @@ class Turath {
 
   /// From our own site: the index, then the pages part by part.
   static Future<void> _downloadHosted(int id, void Function(double) progress) async {
-    final idx = await _get('$booksBase$id/i.json');
+    final idx = await _file(id, 'i.json');
     final count = ((jsonDecode(idx) as Map<String, dynamic>)['count'] as num?)?.toInt() ?? 0;
     if (count == 0) throw Exception('empty');
     final parts = (count + chunk - 1) ~/ chunk;
     final pages = <Map<String, Object>>[];
     for (var k = 0; k < parts; k++) {
-      final rows = jsonDecode(await _get('$booksBase$id/p$k.json', timeout: const Duration(seconds: 60))) as List<dynamic>;
+      final rows = jsonDecode(await _file(id, 'p$k.json', timeout: const Duration(seconds: 60))) as List<dynamic>;
       for (final r in rows) {
         final x = r as List<dynamic>;
         pages.add({'vol': '${x[0]}', 'page': (x[1] as num).toInt(), 'text': '${x[2]}'});
@@ -274,7 +311,7 @@ class Turath {
 
   /// Searches a book kept in the library (light text, no harakat). Works on the website too.
   static Future<List<SearchHit>> searchHosted(int id, int authorId, String bookName, String q, {int limit = 60}) async {
-    final lines = _texts[id] ?? (await _get('$booksBase$id/s.txt', timeout: const Duration(seconds: 60))).split('\n');
+    final lines = _texts[id] ?? (await _file(id, 's.txt', timeout: const Duration(seconds: 60))).split('\n');
     if (_texts.length > 6) _texts.clear();
     _texts[id] = lines;
     final nq = norm(q);
