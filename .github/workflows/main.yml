@@ -21,6 +21,8 @@ jobs:
           restore-keys: catalog-
       - name: Books list from «تراث»
         run: python3 tool/build_catalog.py
+      - name: Candidates for the new sections
+        run: python3 tool/find_books.py || true
       - uses: actions/upload-artifact@v4
         with:
           name: catalog
