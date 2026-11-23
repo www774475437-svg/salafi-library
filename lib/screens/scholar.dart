@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../bios.dart';
 import '../catalog.dart';
 import '../store.dart';
 import '../text.dart';
@@ -64,6 +65,13 @@ class _ScholarScreenState extends State<ScholarScreen> {
               ),
             ]),
           ),
+          if (scholarBio[s.key] != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: SoftCard(
+                child: Text(scholarBio[s.key]!, style: TextStyle(fontSize: 15, height: 1.8, color: C.ink(context))),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: TextField(

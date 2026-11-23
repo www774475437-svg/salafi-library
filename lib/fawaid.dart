@@ -17,6 +17,9 @@ class Faida {
   final int post; // number of the post it was chosen in
   const Faida(this.scholar, this.text, this.source, this.raw, this.by, {this.book = 0, this.pg = 0, this.was = '', this.post = 0});
 
+  /// What a saved saying is remembered by.
+  String get key => book > 0 ? '$book:$pg:$post' : 't:${text.hashCode}';
+
   String get shareText => raw
       ? '$text،.🪶\n\n[📓$source]'
       : '▪️ قال ${scholar.short} ${scholar.honorific}:\n\n«$text،.🪶»\n\n[📓$source]';

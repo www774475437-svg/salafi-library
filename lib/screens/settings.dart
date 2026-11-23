@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../catalog.dart';
 import '../store.dart';
@@ -57,6 +58,18 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: st.backup()));
                   toast(context, 'نُسخت مكتبتك، الصقها في ملاحظة أو رسالة لنفسك');
+                },
+              ),
+              _Row(
+                icon: Icons.ios_share_rounded,
+                title: 'شارك مظلّلاتي وملاحظاتي نصًّا',
+                sub: 'نص مرتّب بالمصادر، ترسله أو تطبعه',
+                onTap: () {
+                  if (st.highlights.isEmpty && st.quotes.isEmpty && st.notes.isEmpty) {
+                    toast(context, 'ليس في مكتبتك شيء بعد');
+                    return;
+                  }
+                  Share.share(st.exportText((id) => Catalog.byId[id]?.shortName ?? 'كتاب'));
                 },
               ),
               _Row(icon: Icons.download_rounded, title: 'أرجع نسخة', sub: 'الصق النص الذي نسخته من قبل', onTap: () => _restore(context)),

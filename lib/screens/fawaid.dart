@@ -10,7 +10,9 @@ import '../turath.dart';
 import '../ui.dart';
 import '../update.dart' show openLink;
 import 'quote_image.dart';
+import '../store.dart';
 import 'reader.dart';
+import 'report.dart';
 
 /// Finds the saying inside the scholar's books and opens it there.
 Future<void> openFaidaPlace(BuildContext context, Faida f) async {
@@ -84,14 +86,22 @@ class FawaidScreen extends StatefulWidget {
 class _FawaidScreenState extends State<FawaidScreen> {
   String q = '';
   String scholar = '';
+  bool saved = false;
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Store.i,
+      builder: (context, _) => _page(context),
+    );
+  }
+
+  Widget _page(BuildContext context) {
     // every scholar gets a chip, even before his sayings are added
     final keys = [for (final s in Catalog.scholars) s.key];
     final nq = norm(q);
     final list = Fawaid.all
-        .where((f) => (scholar.isEmpty || f.scholar.key == scholar) && (nq.isEmpty || norm(f.text).contains(nq) || norm(f.source).contains(nq)))
+        .where((f) => (!saved || Store.i.favFawaid.contains(f.key)) && (scholar.isEmpty || f.scholar.key == scholar) && (nq.isEmpty || norm(f.text).contains(nq) || norm(f.source).contains(nq)))
         .toList();
     Scholar byKey(String k) => Catalog.scholars.firstWhere((s) => s.key == k);
     return Scaffold(
@@ -115,6 +125,7 @@ class _FawaidScreenState extends State<FawaidScreen> {
         SizedBox(
           height: 48,
           child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), children: [
+            _chip('المحفوظة (${Ar.num(Store.i.favFawaid.length)})', saved, () => setState(() => saved = !saved)),
             _chip('الكل', scholar.isEmpty, () => setState(() => scholar = '')),
             for (final k in keys) _chip(byKey(k).short, scholar == k, () => setState(() => scholar = k)),
           ]),
@@ -123,7 +134,9 @@ class _FawaidScreenState extends State<FawaidScreen> {
           child: list.isEmpty
               ? EmptyNote(
                   Icons.lightbulb_outline_rounded,
-                  scholar.isNotEmpty && Fawaid.all.every((f) => f.scholar.key != scholar)
+                  saved
+                      ? 'لم تحفظ فائدة بعد. اضغط «حفظ» تحت أي فائدة.'
+                      : scholar.isNotEmpty && Fawaid.all.every((f) => f.scholar.key != scholar)
                       ? 'فوائد ${byKey(scholar).short} قريبًا بإذن الله.'
                       : Fawaid.all.isEmpty
                           ? 'تُضاف الفوائد قريبًا بإذن الله.'
@@ -168,6 +181,7 @@ class FaidaCard extends StatelessWidget {
             ]),
           ),
         );
+    final kept = Store.i.favFawaid.contains(f.key);
     return SoftCard(
       margin: const EdgeInsets.only(bottom: 10),
       onTap: () => openFaidaPlace(context, f),
@@ -190,12 +204,14 @@ class FaidaCard extends StatelessWidget {
         const SizedBox(height: 4),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           btn(Icons.menu_book_rounded, 'موضعها', () => openFaidaPlace(context, f)),
+          btn(kept ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, kept ? 'محفوظة' : 'حفظ', () => Store.i.toggleFaida(f.key)),
           btn(Icons.copy_rounded, 'نسخ', () {
             Clipboard.setData(ClipboardData(text: f.shareText));
             toast(context, 'نُسخت مع المصدر');
           }),
           btn(Icons.share_rounded, 'مشاركة', () => Share.share(f.shareText)),
           btn(Icons.image_outlined, 'صورة', () => showQuoteImage(context, text: f.text, scholar: f.raw ? '' : '${f.scholar.name} ${f.scholar.honorific}', source: f.source)),
+          btn(Icons.flag_outlined, 'إبلاغ', () => showReport(context, about: 'فائدة: ${f.source}', text: f.text)),
         ]),
       ]),
     );

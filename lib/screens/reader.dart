@@ -14,6 +14,7 @@ import 'book.dart';
 import 'colors.dart';
 import 'pdf.dart';
 import 'quote_image.dart';
+import 'report.dart';
 import 'search.dart';
 
 void openReader(BuildContext context, BookInfo b, int pg) =>
@@ -219,6 +220,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   if (BookFiles.supported && !Store.i.downloaded.contains(b.id))
                     const PopupMenuItem(value: 'download', child: ListTile(leading: Icon(Icons.download_rounded), title: Text('حمّل الكتاب'))),
                   const PopupMenuItem(value: 'book', child: ListTile(leading: Icon(Icons.info_outline_rounded), title: Text('صفحة الكتاب'))),
+                  const PopupMenuItem(value: 'report', child: ListTile(leading: Icon(Icons.flag_outlined), title: Text('أبلغ عن خطأ'))),
                 ],
               ),
             ],
@@ -448,6 +450,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         startDownload(context, b);
       case 'book':
         openBook(context, b);
+      case 'report':
+        showReport(context, about: '${b.shortName} · ${label(pg)}');
     }
   }
 

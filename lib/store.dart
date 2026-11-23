@@ -68,6 +68,7 @@ class Store extends ChangeNotifier {
   final Map<int, int> lastPg = {};
   final List<int> recent = [];
   final Set<int> downloaded = {};
+  final Set<String> favFawaid = {}; // sayings the reader kept
   final List<Kept> bookmarks = [];
   final List<Kept> highlights = [];
   final List<Kept> quotes = [];
@@ -95,6 +96,7 @@ class Store extends ChangeNotifier {
       recent.addAll((jsonDecode(p.getString('recent') ?? '[]') as List).map((e) => (e as num).toInt()));
       (jsonDecode(p.getString('pdfOffset') ?? '{}') as Map<String, dynamic>).forEach((k, v) => pdfOffset[k] = (v as num).toInt());
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
+      favFawaid.addAll((jsonDecode(p.getString('favFawaid') ?? '[]') as List).map((e) => '$e'));
       bookmarks.addAll(_list('bookmarks'));
       highlights.addAll(_list('highlights'));
       quotes.addAll(_list('quotes'));
@@ -129,6 +131,7 @@ class Store extends ChangeNotifier {
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
     p.setString('recent', jsonEncode(recent));
     p.setString('downloaded', jsonEncode(downloaded.toList()));
+    p.setString('favFawaid', jsonEncode(favFawaid.toList()));
     p.setString('bookmarks', jsonEncode(bookmarks.map((e) => e.toJson()).toList()));
     p.setString('highlights', jsonEncode(highlights.map((e) => e.toJson()).toList()));
     p.setString('quotes', jsonEncode(quotes.map((e) => e.toJson()).toList()));
@@ -240,13 +243,38 @@ class Store extends ChangeNotifier {
     changed();
   }
 
+  void toggleFaida(String key) {
+    if (!favFawaid.remove(key)) favFawaid.add(key);
+    _save();
+  }
+
   List<Kept> highlightsOn(int book, int pg) => highlights.where((h) => h.book == book && h.pg == pg).toList();
+
+  /// Highlights, quotes and notes as plain readable text, to share or print.
+  String exportText(String Function(int book) nameOf) {
+    final out = StringBuffer('من مكتبتي في «مكتبة العلماء السلفية»\n');
+    void part(String title, List<Kept> list) {
+      if (list.isEmpty) return;
+      out.write('\n━━ $title (${list.length}) ━━\n');
+      for (final k in list) {
+        out.write('\n«${k.text}»\n');
+        if (k.note.isNotEmpty) out.write('ملاحظتي: ${k.note}\n');
+        out.write('[${nameOf(k.book)} · ${k.label}]\n');
+      }
+    }
+
+    part('المظلّلات', highlights);
+    part('الاقتباسات', quotes);
+    part('الملاحظات', notes);
+    return out.toString();
+  }
 
   /// Everything personal as one text (to keep a copy or move to a new phone).
   String backup() => jsonEncode({
         'v': 1,
         'lastPg': lastPg.map((k, v) => MapEntry('$k', v)),
         'recent': recent,
+        'favFawaid': favFawaid.toList(),
         'bookmarks': bookmarks.map((e) => e.toJson()).toList(),
         'highlights': highlights.map((e) => e.toJson()).toList(),
         'quotes': quotes.map((e) => e.toJson()).toList(),
@@ -277,11 +305,12 @@ class Store extends ChangeNotifier {
       colors.add(HlColor(((cs[i] as Map)['v'] as num).toInt(), '${cs[i]['n']}'));
     }
     (j['lastPg'] as Map<String, dynamic>? ?? {}).forEach((k, v) => lastPg.putIfAbsent(int.parse(k), () => (v as num).toInt()));
+    favFawaid.addAll((j['favFawaid'] as List? ?? const []).map((e) => '$e'));
     for (final r in (j['recent'] as List? ?? const [])) {
       final b = (r as num).toInt();
       if (!recent.contains(b)) recent.add(b);
     }
-    changed();
+    _save();
     return n;
   }
 }
