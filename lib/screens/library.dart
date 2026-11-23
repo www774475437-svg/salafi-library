@@ -8,6 +8,7 @@ import '../store.dart';
 import '../ui.dart';
 import 'book.dart';
 import 'colors.dart';
+import 'more.dart' show ReadLaterList;
 import 'reader.dart';
 import 'scholar.dart' show BookTile;
 
@@ -20,8 +21,9 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   int tab = 0;
   int color = -1; // highlight filter
+  String topic = ''; // quotes filter
 
-  static const _tabs = ['المظلّلات', 'الاقتباسات', 'الفواصل', 'المحمّلة', 'قرأتُ', 'الملاحظات'];
+  static const _tabs = ['المظلّلات', 'الاقتباسات', 'الفواصل', 'المحمّلة', 'قرأتُ', 'الملاحظات', 'سأقرؤه لاحقًا'];
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +70,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         return s.downloaded.length;
       case 5:
         return s.notes.length;
+      case 6:
+        return s.readLater.length;
       default:
         return s.recent.where(Catalog.byId.containsKey).length;
     }
@@ -117,9 +121,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ],
         ]);
       case 1:
-        return s.quotes.isEmpty
-            ? const EmptyNote(Icons.format_quote_rounded, 'حدّد نصًّا وأنت تقرأ ثم اختر «اقتبس»، فيُحفظ هنا مع مصدره لتنسخه أو تشاركه.')
-            : ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [for (final q in s.quotes) _KeptCard(q, kind: 1)]);
+        if (s.quotes.isEmpty) {
+          return const EmptyNote(Icons.format_quote_rounded, 'حدّد نصًّا وأنت تقرأ ثم اختر «اقتباس»، فيُحفظ هنا مع مصدره وموضوعه لتنسخه أو تشاركه.');
+        }
+        final used = quoteTopics.where((t) => s.quotes.any((q) => q.topic == t)).toList();
+        final shown = s.quotes.where((q) => topic.isEmpty || q.topic == topic).toList();
+        return ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [
+          if (used.isNotEmpty)
+            Wrap(spacing: 8, children: [
+              ChoiceChip(label: const Text('الكل'), selected: topic.isEmpty, showCheckmark: false, onSelected: (_) => setState(() => topic = '')),
+              for (final t in used)
+                ChoiceChip(
+                  label: Text('$t (${Ar.num(s.quotes.where((q) => q.topic == t).length)})'),
+                  selected: topic == t,
+                  showCheckmark: false,
+                  onSelected: (_) => setState(() => topic = t),
+                ),
+            ]),
+          const SizedBox(height: 8),
+          for (final q in shown) _KeptCard(q, kind: 1),
+        ]);
       case 2:
         return s.bookmarks.isEmpty
             ? const EmptyNote(Icons.bookmark_border_rounded, 'اضغط علامة الفاصلة أعلى صفحة القراءة لتحفظ مكانك، فتظهر هنا.')
@@ -132,6 +153,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         return books.isEmpty
             ? const EmptyNote(Icons.download_rounded, 'لم تحمّل كتابًا بعد. افتح أي كتاب واضغط «تحميل» ليُقرأ ويُبحث فيه بلا إنترنت.')
             : ListView(padding: const EdgeInsets.only(top: 6, bottom: 110), children: [for (final b in books) BookTile(b)]);
+      case 6:
+        return const ReadLaterList();
       case 5:
         return s.notes.isEmpty
             ? const EmptyNote(Icons.sticky_note_2_outlined, 'حدّد نصًّا وأنت تقرأ ثم اضغط «ملاحظة» واكتب ما تريد، فتُحفظ هنا مع موضعها في الكتاب.')
@@ -227,14 +250,22 @@ class _KeptCard extends StatelessWidget {
           ),
         ]),
         if (book != null && kind != 2)
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
+          Wrap(spacing: 4, children: [
+            TextButton.icon(
               onPressed: () => openBook(context, book),
               icon: const Icon(Icons.menu_book_rounded, size: 18),
               label: const Text('صفحة الكتاب'),
             ),
-          ),
+            if (kind == 1)
+              TextButton.icon(
+                onPressed: () async {
+                  final t = await pickTopic(context, current: k.topic);
+                  if (t != null) Store.i.setTopic(k, t);
+                },
+                icon: const Icon(Icons.label_outline_rounded, size: 18),
+                label: Text(k.topic.isEmpty ? 'اختر موضوعًا' : k.topic),
+              ),
+          ]),
       ]),
     );
   }

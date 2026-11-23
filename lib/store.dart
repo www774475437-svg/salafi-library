@@ -13,9 +13,10 @@ class Kept {
   final String label; // «ج١ ص٢٥»
   final int at;
   String note;
-  Kept({required this.id, required this.book, required this.pg, this.text = '', this.color = 0, this.label = '', required this.at, this.note = ''});
+  String topic; // the subject a quote is filed under («العقيدة», «الفقه»…)
+  Kept({required this.id, required this.book, required this.pg, this.text = '', this.color = 0, this.label = '', required this.at, this.note = '', this.topic = ''});
 
-  Map<String, dynamic> toJson() => {'id': id, 'b': book, 'p': pg, 't': text, 'c': color, 'l': label, 'a': at, 'n': note};
+  Map<String, dynamic> toJson() => {'id': id, 'b': book, 'p': pg, 't': text, 'c': color, 'l': label, 'a': at, 'n': note, if (topic.isNotEmpty) 'tp': topic};
   static Kept fromJson(Map<String, dynamic> j) => Kept(
         id: j['id'] as String,
         book: (j['b'] as num).toInt(),
@@ -25,8 +26,12 @@ class Kept {
         label: (j['l'] as String?) ?? '',
         at: (j['a'] as num?)?.toInt() ?? 0,
         note: (j['n'] as String?) ?? '',
+        topic: (j['tp'] as String?) ?? '',
       );
 }
+
+/// Subjects a quote can be filed under.
+const quoteTopics = ['العقيدة', 'الفقه', 'التزكية', 'التفسير', 'الحديث', 'السيرة والتاريخ', 'الآداب والأخلاق', 'طلب العلم', 'الرقائق والمواعظ', 'الأذكار والدعاء', 'الأسرة والتربية', 'الدعوة والمنهج'];
 
 /// A highlight colour the reader can name («طرائف», «فوائد»…).
 class HlColor {
@@ -62,6 +67,10 @@ class Store extends ChangeNotifier {
   int paper = 0; // 0 white, 1 cream, 2 night
   bool tashkeel = true;
   int readMode = 0; // 0 pages like the printed book, 1 one continuous text
+  bool hideFoot = false; // the text alone, without the footnotes
+  bool keepOn = true; // the screen stays lit while reading
+  bool volKeys = false; // the volume buttons turn the pages
+  int firstRun = 0; // when the app was first opened (for the later «rate the app» reminder)
   final Map<String, int> pdfOffset = {}; // "book:vol" → scanned page minus printed page
 
   // reading
@@ -69,6 +78,7 @@ class Store extends ChangeNotifier {
   final List<int> recent = [];
   final Set<int> downloaded = {};
   final Set<String> favFawaid = {}; // sayings the reader kept
+  final List<int> readLater = []; // books to read later
   final List<Kept> bookmarks = [];
   final List<Kept> highlights = [];
   final List<Kept> quotes = [];
@@ -90,6 +100,14 @@ class Store extends ChangeNotifier {
     paper = p.getInt('paper') ?? 0;
     tashkeel = p.getBool('tashkeel') ?? true;
     readMode = p.getInt('readMode') ?? 0;
+    hideFoot = p.getBool('hideFoot') ?? false;
+    keepOn = p.getBool('keepOn') ?? true;
+    volKeys = p.getBool('volKeys') ?? false;
+    firstRun = p.getInt('firstRun') ?? 0;
+    if (firstRun == 0) {
+      firstRun = DateTime.now().millisecondsSinceEpoch;
+      p.setInt('firstRun', firstRun);
+    }
     try {
       final lp = jsonDecode(p.getString('lastPg') ?? '{}') as Map<String, dynamic>;
       lp.forEach((k, v) => lastPg[int.parse(k)] = (v as num).toInt());
@@ -97,6 +115,7 @@ class Store extends ChangeNotifier {
       (jsonDecode(p.getString('pdfOffset') ?? '{}') as Map<String, dynamic>).forEach((k, v) => pdfOffset[k] = (v as num).toInt());
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
       favFawaid.addAll((jsonDecode(p.getString('favFawaid') ?? '[]') as List).map((e) => '$e'));
+      readLater.addAll((jsonDecode(p.getString('readLater') ?? '[]') as List).map((e) => (e as num).toInt()));
       bookmarks.addAll(_list('bookmarks'));
       highlights.addAll(_list('highlights'));
       quotes.addAll(_list('quotes'));
@@ -127,6 +146,10 @@ class Store extends ChangeNotifier {
     p.setInt('paper', paper);
     p.setBool('tashkeel', tashkeel);
     p.setInt('readMode', readMode);
+    p.setBool('hideFoot', hideFoot);
+    p.setBool('keepOn', keepOn);
+    p.setBool('volKeys', volKeys);
+    p.setString('readLater', jsonEncode(readLater));
     p.setString('pdfOffset', jsonEncode(pdfOffset));
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
     p.setString('recent', jsonEncode(recent));
@@ -144,7 +167,10 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode}) {
+  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode, bool? hideFoot, bool? keepOn, bool? volKeys}) {
+    if (hideFoot != null) this.hideFoot = hideFoot;
+    if (keepOn != null) this.keepOn = keepOn;
+    if (volKeys != null) this.volKeys = volKeys;
     if (readMode != null) this.readMode = readMode;
     if (themeMode != null) this.themeMode = themeMode;
     if (fontSize != null) this.fontSize = fontSize.clamp(15, 40).toDouble();
@@ -198,8 +224,8 @@ class Store extends ChangeNotifier {
     return k;
   }
 
-  Kept addQuote(int book, int pg, String text, String label) {
-    final k = Kept(id: newId(), book: book, pg: pg, text: text.trim(), label: label, at: now());
+  Kept addQuote(int book, int pg, String text, String label, {String topic = ''}) {
+    final k = Kept(id: newId(), book: book, pg: pg, text: text.trim(), label: label, at: now(), topic: topic);
     quotes.insert(0, k);
     changed();
     return k;
@@ -245,7 +271,17 @@ class Store extends ChangeNotifier {
 
   void toggleFaida(String key) {
     if (!favFawaid.remove(key)) favFawaid.add(key);
-    _save();
+    changed();
+  }
+
+  void toggleLater(int book) {
+    if (!readLater.remove(book)) readLater.insert(0, book);
+    changed();
+  }
+
+  void setTopic(Kept k, String topic) {
+    k.topic = topic;
+    changed();
   }
 
   List<Kept> highlightsOn(int book, int pg) => highlights.where((h) => h.book == book && h.pg == pg).toList();
@@ -275,6 +311,7 @@ class Store extends ChangeNotifier {
         'lastPg': lastPg.map((k, v) => MapEntry('$k', v)),
         'recent': recent,
         'favFawaid': favFawaid.toList(),
+        'readLater': readLater,
         'bookmarks': bookmarks.map((e) => e.toJson()).toList(),
         'highlights': highlights.map((e) => e.toJson()).toList(),
         'quotes': quotes.map((e) => e.toJson()).toList(),
@@ -306,11 +343,15 @@ class Store extends ChangeNotifier {
     }
     (j['lastPg'] as Map<String, dynamic>? ?? {}).forEach((k, v) => lastPg.putIfAbsent(int.parse(k), () => (v as num).toInt()));
     favFawaid.addAll((j['favFawaid'] as List? ?? const []).map((e) => '$e'));
+    for (final r in (j['readLater'] as List? ?? const [])) {
+      final b = (r as num).toInt();
+      if (!readLater.contains(b)) readLater.add(b);
+    }
     for (final r in (j['recent'] as List? ?? const [])) {
       final b = (r as num).toInt();
       if (!recent.contains(b)) recent.add(b);
     }
-    _save();
+    changed();
     return n;
   }
 }

@@ -8,7 +8,10 @@ const appBuild = int.fromEnvironment('BUILD', defaultValue: 0);
 const siteUrl = 'https://www774475437-svg.github.io/salafi-library/';
 const apkUrl = 'https://github.com/www774475437-svg/salafi-library/releases/latest/download/salafi-library.apk';
 const contactUrl = 'https://t.me/alhsaar4';
-const developerName = 'أبو عبد الرحمن الأثري';
+const developerName = 'أبو عبد الرحمن أحمد الأثري';
+
+/// The app's page in the store; empty until it is published there.
+const storeUrl = '';
 
 Future<void> openLink(String url) async {
   try {

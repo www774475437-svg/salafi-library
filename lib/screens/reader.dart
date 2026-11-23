@@ -5,6 +5,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../catalog.dart';
+import '../screen.dart';
 import '../files/files.dart';
 import '../store.dart';
 import '../text.dart';
@@ -33,6 +34,33 @@ String quoteText(BookInfo b, String text, String source) {
   final t = text.trim().replaceAll(RegExp(r'\s*\n\s*'), '\n');
   if (b.scholar.collection) return '«$t،.🪶»\n\n[📓${b.shortName} (صـ $source)]';
   return '▪️ قال ${b.scholar.short} ${b.scholar.honorific}:\n\n«$t،.🪶»\n\n[📓${b.shortName} (صـ $source)]';
+}
+
+/// Asks which subject a quote goes under. '' = none, null = cancelled.
+Future<String?> pickTopic(BuildContext context, {String current = ''}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (c) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('موضوع الاقتباس', style: TextStyle(fontFamily: bookFont, fontSize: 21, fontWeight: FontWeight.w700, color: C.ink(c))),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            for (final t in quoteTopics)
+              ChoiceChip(label: Text(t), selected: t == current, showCheckmark: false, onSelected: (_) => Navigator.pop(c, t)),
+          ]),
+          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton(onPressed: () => Navigator.pop(c, ''), child: const Text('بلا موضوع')),
+          ),
+        ]),
+      ),
+    ),
+  );
 }
 
 /// Paper colours: like the app, white, cream, night.
@@ -113,6 +141,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _flowPos.itemPositions.addListener(_flowMoved);
     Store.i.readAt(b.id, pg);
     _loadIndex();
+    Screen.keepOn(Store.i.keepOn);
+    if (Store.i.volKeys) Screen.volumeKeys(_step);
   }
 
   /// In the continuous text, the page at the top of the screen is the page being read.
@@ -148,6 +178,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    Screen.keepOn(false);
+    Screen.volumeKeys(null);
     _flowPos.itemPositions.removeListener(_flowMoved);
     _pc.dispose();
     super.dispose();
@@ -373,10 +405,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
               clearSel();
               toast(context, 'نُسخ النص مع اسم الكتاب والصفحة');
             }),
-            item(ico(Icons.format_quote_rounded), 'اقتباس', () {
-              st.addQuote(b.id, selPg, text, lab);
+            item(ico(Icons.format_quote_rounded), 'اقتباس', () async {
+              final pgNow = selPg;
+              final topic = await pickTopic(context);
+              if (topic == null || !mounted) return;
+              st.addQuote(b.id, pgNow, text, lab, topic: topic);
               clearSel();
-              toast(context, 'حُفظ في اقتباساتك في «مكتبتي»');
+              if (mounted) toast(this.context, topic.isEmpty ? 'حُفظ في اقتباساتك في «مكتبتي»' : 'حُفظ في اقتباساتك تحت «$topic»');
             }),
             item(ico(Icons.share_rounded), 'مشاركة', () => Share.share(quoteText(b, text, src))),
             item(ico(Icons.image_outlined), 'مشاركة صورة',
@@ -558,7 +593,7 @@ class _Page extends StatelessWidget {
               },
               contextMenuBuilder: (context, es) => AdaptiveTextSelectionToolbar.editableText(editableTextState: es),
             ),
-            if (pt.foot.isNotEmpty) ...[
+            if (pt.foot.isNotEmpty && !st.hideFoot) ...[
               const SizedBox(height: 16),
               Divider(color: ink.withValues(alpha: 0.2), endIndent: 160),
               SelectableText(pt.foot,

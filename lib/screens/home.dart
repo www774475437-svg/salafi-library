@@ -9,6 +9,7 @@ import '../ui.dart';
 import '../update.dart';
 import 'book.dart';
 import 'fawaid.dart';
+import 'more.dart';
 import 'reader.dart';
 import 'scholar.dart';
 
@@ -104,6 +105,38 @@ class HomeScreen extends StatelessWidget {
                 }),
               ),
             ],
+            const SectionTitle('المزيد', onMore: null),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: LayoutBuilder(builder: (context, c) {
+                final cols = c.maxWidth > 560 ? 3 : 1;
+                final w = (c.maxWidth - (cols - 1) * 10) / cols;
+                Widget tile(IconData icon, String title, String text, VoidCallback tap) => SizedBox(
+                      width: w,
+                      child: SoftCard(
+                        onTap: tap,
+                        child: Row(children: [
+                          RoundIcon(icon, size: 42),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: C.ink(context))),
+                              Text(text, style: TextStyle(fontSize: 13, color: C.muted(context))),
+                            ]),
+                          ),
+                          Icon(Icons.chevron_left_rounded, color: C.muted(context)),
+                        ]),
+                      ),
+                    );
+                return Wrap(spacing: 10, runSpacing: 10, children: [
+                  tile(Icons.forum_outlined, 'فوائد القرّاء', 'ما ينشره القرّاء من اقتباساتهم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadersFawaidScreen()))),
+                  tile(Icons.school_outlined, 'منهج طالب العلم', 'كتب مرتّبة بالتدرّج', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MinhajScreen()))),
+                  tile(Icons.shuffle_rounded, 'افتح لي صفحة', 'صفحة عشوائية من المكتبة', () => openRandomPage(context)),
+                ]);
+              }),
+            ),
+            if (rateReminderDue())
+              _Banner(icon: Icons.thumb_up_alt_outlined, title: 'قيّم التطبيق', text: 'تقييمك يعين على وصول المكتبة إلى غيرك.', onTap: () => rateApp(context)),
             if (lastHl != null && Catalog.byId[lastHl.book] != null) ...[
               SectionTitle('من مظلّلاتك', onMore: () => shellTab.value = 2),
               Padding(

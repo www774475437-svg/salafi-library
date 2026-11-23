@@ -8,7 +8,9 @@ import '../store.dart';
 import '../ui.dart';
 import '../update.dart';
 import 'colors.dart';
+import '../files/files.dart';
 import 'fawaid.dart' show PendingFawaidScreen;
+import 'more.dart';
 import 'reader.dart' show showReadingLook;
 
 class SettingsScreen extends StatelessWidget {
@@ -50,6 +52,37 @@ class SettingsScreen extends StatelessWidget {
                 onChanged: (v) => st.setSettings(tashkeel: v),
               ),
             ]),
+            _Group(title: 'القراءة', children: [
+              SwitchListTile(
+                secondary: const _Ico(Icons.notes_rounded),
+                title: const Text('إخفاء الحواشي'),
+                subtitle: const Text('يظهر المتن وحده'),
+                value: st.hideFoot,
+                onChanged: (v) => st.setSettings(hideFoot: v),
+              ),
+              if (!kIsWeb)
+                SwitchListTile(
+                  secondary: const _Ico(Icons.light_mode_outlined),
+                  title: const Text('الشاشة لا تنطفئ أثناء القراءة'),
+                  value: st.keepOn,
+                  onChanged: (v) => st.setSettings(keepOn: v),
+                ),
+              if (!kIsWeb)
+                SwitchListTile(
+                  secondary: const _Ico(Icons.volume_up_outlined),
+                  title: const Text('تقليب الصفحات بزرّي الصوت'),
+                  subtitle: const Text('الأسفل للصفحة التالية، والأعلى للسابقة'),
+                  value: st.volKeys,
+                  onChanged: (v) => st.setSettings(volKeys: v),
+                ),
+              if (BookFiles.supported)
+                _Row(
+                  icon: Icons.sd_storage_outlined,
+                  title: 'الكتب المحمّلة ومساحتها',
+                  sub: '${Ar.books(st.downloaded.length)} على الجوال',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StorageScreen())),
+                ),
+            ]),
             _Group(title: 'نسخة من مكتبتي', children: [
               _Row(
                 icon: Icons.upload_rounded,
@@ -75,7 +108,14 @@ class SettingsScreen extends StatelessWidget {
               _Row(icon: Icons.download_rounded, title: 'أرجع نسخة', sub: 'الصق النص الذي نسخته من قبل', onTap: () => _restore(context)),
             ]),
             _Group(title: 'عن التطبيق', children: [
-              _Row(icon: Icons.menu_book_rounded, title: 'مكتبة العلماء السلفية', sub: 'نسخة ${Ar.num(appBuild)} · ${Ar.books(Catalog.totalBooks)}'),
+              _Row(
+                icon: Icons.menu_book_rounded,
+                title: 'عن التطبيق',
+                sub: 'نسخة ${Ar.num(appBuild)} · ${Ar.books(Catalog.totalBooks)}',
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
+              ),
+              _Row(icon: Icons.ios_share_rounded, title: 'شارك التطبيق', sub: 'أرسل رابط المكتبة لمن تحب', onTap: shareApp),
+              _Row(icon: Icons.thumb_up_alt_outlined, title: 'قيّم التطبيق', sub: 'يتوفّر بعد نشره في المتجر', onTap: () => rateApp(context)),
               _Row(
                 icon: Icons.person_rounded,
                 title: 'المطوّر',

@@ -51,3 +51,56 @@ for d in ["drawable", "drawable-v21"]:
 </layer-list>
 ''', encoding="utf-8")
 print("Launch background set")
+
+# the screen stays lit while reading, and the volume buttons can turn the pages
+for act in Path("android/app/src/main/kotlin").rglob("MainActivity.kt"):
+    pkg = re.search(r"^package\s+([\w.]+)", act.read_text(encoding="utf-8"), re.M).group(1)
+    act.write_text(f'''package {pkg}
+
+import android.view.KeyEvent
+import android.view.WindowManager
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity : FlutterActivity() {{
+    private var channel: MethodChannel? = null
+    private var volumeKeys = false
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {{
+        super.configureFlutterEngine(flutterEngine)
+        val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "salafi_library/screen")
+        channel = ch
+        ch.setMethodCallHandler {{ call, result ->
+            when (call.method) {{
+                "keepOn" -> {{
+                    if (call.arguments == true) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    result.success(null)
+                }}
+                "volumeKeys" -> {{
+                    volumeKeys = call.arguments == true
+                    result.success(null)
+                }}
+                else -> result.notImplemented()
+            }}
+        }}
+    }}
+
+    private fun isVolume(keyCode: Int) = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {{
+        if (volumeKeys && isVolume(keyCode)) {{
+            channel?.invokeMethod("volume", if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1)
+            return true
+        }}
+        return super.onKeyDown(keyCode, event)
+    }}
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {{
+        if (volumeKeys && isVolume(keyCode)) return true
+        return super.onKeyUp(keyCode, event)
+    }}
+}}
+''', encoding="utf-8")
+    print("MainActivity patched")

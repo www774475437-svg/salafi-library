@@ -79,6 +79,20 @@ class _BookScreenState extends State<BookScreen> {
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
               ),
             ),
+            if (last != null && b.pages > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+                child: Row(children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(value: (last / b.pages).clamp(0.0, 1.0), minHeight: 6, backgroundColor: C.soft(context), color: C.gold(context)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('قرأتَ ${Ar.num(((last / b.pages).clamp(0.0, 1.0) * 100).round())}٪', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: C.muted(context))),
+                ]),
+              ),
             FutureBuilder<BookIndex>(
               future: _index,
               builder: (context, snap) {
@@ -95,6 +109,9 @@ class _BookScreenState extends State<BookScreen> {
                             isDown ? () => _askDelete(b) : () => startDownload(context, b))
                   else
                     _Action(Icons.android_rounded, 'بلا إنترنت في تطبيق أندرويد', () => openLink(apkUrl)),
+                  Store.i.readLater.contains(b.id)
+                      ? _Action(Icons.watch_later_rounded, 'في قائمة «سأقرؤه لاحقًا»', () => Store.i.toggleLater(b.id))
+                      : _Action(Icons.watch_later_outlined, 'سأقرؤه لاحقًا', () => Store.i.toggleLater(b.id)),
                 ];
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
