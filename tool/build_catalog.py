@@ -30,6 +30,31 @@ SCHOLARS = [
 ]
 
 
+# key, name, short name, book numbers in «تراث»
+COLLECTIONS = [
+    ("kutub-sitta", "الكتب الستة", "الكتب الستة", [
+        1681,    # صحيح البخاري - ط السلطانية
+        1727,    # صحيح مسلم - ت عبد الباقي
+        117359,  # سنن أبي داود - ت الأرنؤوط
+        7895,    # سنن الترمذي - ت بشار
+        1339,    # سنن النسائي - ط الرسالة
+        98138,   # سنن ابن ماجه - ت الأرنؤوط
+    ]),
+    ("tafasir", "التفاسير", "التفاسير", [
+        42,     # تفسير السعدي
+        8473,   # تفسير ابن كثير - ت السلامة
+        18102,  # المختصر في تفسير القرآن الكريم
+        1407,   # التفسير الميسر
+        7798,   # تفسير الطبري - ت التركي
+        41,     # تفسير البغوي - طيبة
+        20766,  # أضواء البيان - ط عطاءات العلم
+        10088,  # أيسر التفاسير للجزائري
+        23623,  # فتح القدير للشوكاني
+        23619,  # زاد المسير لابن الجوزي
+        8658,   # تفسير ابن أبي حاتم
+    ]),
+]
+
 _lock = threading.Lock()
 _next = [0.0]
 GAP = 0.6  # at most ~2 requests a second, so «تراث» does not refuse us
@@ -131,6 +156,17 @@ def main():
         print(short, a.get("id"), len(books), "books")
         out.append({"key": key, "name": name, "short": short, "honorific": hon, "death": death,
                     "authorId": a.get("id"), "books": books})
+
+    # sections of books by many authors, each book chosen by its number in «تراث»
+    for key, name, short, ids in COLLECTIONS:
+        with ThreadPoolExecutor(2) as ex:
+            got = {b["id"]: b for b in ex.map(book_meta, ids) if b}
+        books = [got[i] for i in ids if i in got]  # kept in the order written here
+        for b in books:
+            b["catName"] = cats.get(b["cat"], "")
+        print(short, len(books), "of", len(ids), "books")
+        out.append({"key": key, "name": name, "short": short, "honorific": "", "death": None, "authorId": 0,
+                    "kind": "collection", "books": books})
 
     if sum(len(s["books"]) for s in out) == 0:
         print("no books found, keeping the old catalog")

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart' show GZipDecoder;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -162,7 +161,7 @@ class Turath {
     final b = r.bodyBytes;
     // some browsers unpack it themselves on the way
     final packed = b.length > 2 && b[0] == 0x1f && b[1] == 0x8b;
-    return utf8.decode(packed ? GZipDecoder().decodeBytes(b) : b);
+    return utf8.decode(packed ? await gunzip(b) : b);
   }
 
   /// Which books the library keeps itself. Remembered for when there is no internet.

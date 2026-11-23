@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -106,3 +107,6 @@ class BookFiles {
     });
   }
 }
+
+/// Unpacks a gzip file from the books stores.
+Future<Uint8List> gunzip(Uint8List bytes) async => Uint8List.fromList(gzip.decode(bytes));
