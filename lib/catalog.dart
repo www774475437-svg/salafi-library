@@ -30,9 +30,12 @@ class Scholar {
   final int? death;
   final int authorId;
   final List<BookInfo> books = [];
-  Scholar(this.key, this.name, this.short, this.honorific, this.death, this.authorId);
 
-  String get deathText => death == null ? 'حفظه الله' : 'ت ${death!} هـ';
+  /// A section of books by many authors (the six books, the tafsirs), not one scholar.
+  final bool collection;
+  Scholar(this.key, this.name, this.short, this.honorific, this.death, this.authorId, {this.collection = false});
+
+  String get deathText => collection ? '' : death == null ? 'حفظه الله' : 'ت ${death!} هـ';
 }
 
 class Catalog {
@@ -47,7 +50,8 @@ class Catalog {
       for (final s in (j['scholars'] as List)) {
         final m = s as Map<String, dynamic>;
         final sc = Scholar(m['key'] as String, m['name'] as String, m['short'] as String, (m['honorific'] as String?) ?? 'رَحِمَهُ الله',
-            (m['death'] as num?)?.toInt(), (m['authorId'] as num?)?.toInt() ?? 0);
+            (m['death'] as num?)?.toInt(), (m['authorId'] as num?)?.toInt() ?? 0,
+            collection: m['kind'] == 'collection');
         for (final b in (m['books'] as List? ?? const [])) {
           final bm = b as Map<String, dynamic>;
           final info = BookInfo((bm['id'] as num).toInt(), (bm['name'] as String?) ?? '', (bm['pages'] as num?)?.toInt() ?? 0,
@@ -60,9 +64,13 @@ class Catalog {
     } catch (_) {}
   }
 
+  /// The scholars themselves, without the sections.
+  static List<Scholar> get people => scholars.where((s) => !s.collection).toList();
+  static List<Scholar> get sections => scholars.where((s) => s.collection).toList();
+
   static Scholar? scholarOfAuthor(int authorId) {
     for (final s in scholars) {
-      if (s.authorId == authorId) return s;
+      if (authorId > 0 && s.authorId == authorId) return s;
     }
     return null;
   }

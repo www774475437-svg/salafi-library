@@ -98,7 +98,7 @@ class _FawaidScreenState extends State<FawaidScreen> {
 
   Widget _page(BuildContext context) {
     // every scholar gets a chip, even before his sayings are added
-    final keys = [for (final s in Catalog.scholars) s.key];
+    final keys = [for (final s in Catalog.people) s.key];
     final nq = norm(q);
     final list = Fawaid.all
         .where((f) => (!saved || Store.i.favFawaid.contains(f.key)) && (scholar.isEmpty || f.scholar.key == scholar) && (nq.isEmpty || norm(f.text).contains(nq) || norm(f.source).contains(nq)))

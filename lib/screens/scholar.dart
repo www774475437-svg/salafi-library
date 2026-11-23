@@ -60,7 +60,7 @@ class _ScholarScreenState extends State<ScholarScreen> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(s.name, style: TextStyle(fontFamily: bookFont, fontSize: 21, fontWeight: FontWeight.w700, height: 1.5, color: C.ink(context))),
-                  Text('${s.deathText} · ${Ar.books(s.books.length)}', style: TextStyle(fontSize: 14, color: C.muted(context))),
+                  Text(s.collection ? Ar.books(s.books.length) : '${s.deathText} · ${Ar.books(s.books.length)}', style: TextStyle(fontSize: 14, color: C.muted(context))),
                 ]),
               ),
             ]),

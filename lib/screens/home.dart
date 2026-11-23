@@ -87,10 +87,23 @@ class HomeScreen extends StatelessWidget {
                 final cols = c.maxWidth > 900 ? 4 : c.maxWidth > 560 ? 3 : 2;
                 final w = (c.maxWidth - (cols - 1) * 10) / cols;
                 return Wrap(spacing: 10, runSpacing: 10, children: [
-                  for (final s in Catalog.scholars) SizedBox(width: w, child: _ScholarCard(s)),
+                  for (final s in Catalog.people) SizedBox(width: w, child: _ScholarCard(s)),
                 ]);
               }),
             ),
+            if (Catalog.sections.isNotEmpty) ...[
+              SectionTitle('أقسام الكتب', onMore: null),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: LayoutBuilder(builder: (context, c) {
+                  final cols = c.maxWidth > 900 ? 4 : c.maxWidth > 560 ? 3 : 2;
+                  final w = (c.maxWidth - (cols - 1) * 10) / cols;
+                  return Wrap(spacing: 10, runSpacing: 10, children: [
+                    for (final s in Catalog.sections) SizedBox(width: w, child: _ScholarCard(s)),
+                  ]);
+                }),
+              ),
+            ],
             if (lastHl != null && Catalog.byId[lastHl.book] != null) ...[
               SectionTitle('من مظلّلاتك', onMore: () => shellTab.value = 2),
               Padding(
@@ -230,7 +243,7 @@ class _ScholarCard extends StatelessWidget {
         const SizedBox(height: 10),
         Text(s.short, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: C.ink(context))),
         const SizedBox(height: 2),
-        Text(s.deathText, style: TextStyle(fontSize: 13, color: C.muted(context))),
+        Text(s.collection ? 'قسم' : s.deathText, style: TextStyle(fontSize: 13, color: C.muted(context))),
         const SizedBox(height: 8),
         Tag(s.books.isEmpty ? 'قريبًا' : Ar.books(s.books.length), color: C.accent(context)),
       ]),

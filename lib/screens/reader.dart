@@ -31,6 +31,7 @@ BookInfo bookOrStub(int id, String name, int authorId) {
 /// The text to share or copy for a quote, in the channel layout.
 String quoteText(BookInfo b, String text, String source) {
   final t = text.trim().replaceAll(RegExp(r'\s*\n\s*'), '\n');
+  if (b.scholar.collection) return '«$t،.🪶»\n\n[📓${b.shortName} (صـ $source)]';
   return '▪️ قال ${b.scholar.short} ${b.scholar.honorific}:\n\n«$t،.🪶»\n\n[📓${b.shortName} (صـ $source)]';
 }
 
@@ -379,7 +380,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             }),
             item(ico(Icons.share_rounded), 'مشاركة', () => Share.share(quoteText(b, text, src))),
             item(ico(Icons.image_outlined), 'مشاركة صورة',
-                () => showQuoteImage(context, text: text, scholar: '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),
+                () => showQuoteImage(context, text: text, scholar: b.scholar.collection ? '' : '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),
             item(ico(Icons.sticky_note_2_outlined), 'ملاحظة', () => _addNote(text, lab)),
             sep(),
             item(ico(Icons.close_rounded), 'إغلاق', clearSel),

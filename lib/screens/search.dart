@@ -140,7 +140,8 @@ class _SearchScreenState extends State<SearchScreen> {
           height: 48,
           child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), children: [
             _chip('كل العلماء', _scholar < 0, () => _pick(-1)),
-            for (var i = 0; i < Catalog.scholars.length; i++) _chip(Catalog.scholars[i].short, _scholar == i, () => _pick(i)),
+            for (var i = 0; i < Catalog.scholars.length; i++)
+              if (!Catalog.scholars[i].collection || kIsWeb) _chip(Catalog.scholars[i].short, _scholar == i, () => _pick(i)),
           ]),
         ),
         if (BookFiles.supported)
