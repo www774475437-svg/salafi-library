@@ -168,10 +168,29 @@ class AboutScreen extends StatelessWidget {
 class MinhajScreen extends StatelessWidget {
   const MinhajScreen({super.key});
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('منهج طالب العلم')),
-        body: const EmptyNote(Icons.school_outlined, 'يتوفّر قريبًا بإذن الله.'),
-      );
+  Widget build(BuildContext context) {
+    final sec = Catalog.sections.where((s) => s.key == 'minhaj');
+    final books = sec.isEmpty ? <BookInfo>[] : sec.first.books;
+    return Scaffold(
+      appBar: AppBar(title: const Text('منهج طالب العلم')),
+      body: books.isEmpty
+          ? const EmptyNote(Icons.school_outlined, 'يتوفّر قريبًا بإذن الله.')
+          : ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 110), children: [
+              SoftCard(
+                child: Text('رتّبنا الكتب بالتدرّج، فابدأ بالأول ثم ما بعده. تُحمَّل كلها للقراءة بلا إنترنت.',
+                    style: TextStyle(fontSize: 15, height: 1.7, color: C.muted(context))),
+              ),
+              const SizedBox(height: 8),
+              for (var i = 0; i < books.length; i++) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 10, 6, 2),
+                  child: Text('${Ar.num(i + 1)}.', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: C.accent(context))),
+                ),
+                BookTile(books[i]),
+              ],
+            ]),
+    );
+  }
 }
 
 /// Books the reader put aside to read later.
