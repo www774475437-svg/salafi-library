@@ -90,7 +90,7 @@ class _BookScreenState extends State<BookScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text('قرأتَ ${Ar.num(((last / b.pages).clamp(0.0, 1.0) * 100).round())}٪', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: C.muted(context))),
+                  Text('قرأتَ ${Ar.num(((Store.i.pagesRead.containsKey(b.id) ? Store.i.readShare(b.id, b.pages) : (last / b.pages).clamp(0.0, 1.0)) * 100).round())}٪', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: C.muted(context))),
                 ]),
               ),
             FutureBuilder<BookIndex>(

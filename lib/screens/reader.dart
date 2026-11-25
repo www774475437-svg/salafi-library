@@ -87,6 +87,7 @@ class ReaderScreen extends StatefulWidget {
 }
 
 class _ReaderScreenState extends State<ReaderScreen> {
+  static bool _warnedSmall = false;
   PageController _pc = PageController();
   final _flowCtl = ItemScrollController();
   final _flowPos = ItemPositionsListener.create();
@@ -136,6 +137,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // once per opening: small text on a small screen is easy to miss
+      if (!mounted || _warnedSmall) return;
+      if (MediaQuery.sizeOf(context).width < 380 && Store.i.fontSize < 19) {
+        _warnedSmall = true;
+        toast(context, 'النص صغير على هذه الشاشة. يمكنك تكبيره من الإعدادات أو من شريط الخط');
+      }
+    });
     pg = widget.startPg < 1 ? 1 : widget.startPg;
     _pc = PageController(initialPage: pg - 1);
     _modeShown = Store.i.readMode;
@@ -334,6 +343,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
           IconButton(
+            tooltip: Store.i.isPageRead(b.id, pg) ? 'أزل علامة القراءة' : 'علّمتُ هذه الصفحة مقروءة',
+            icon: Icon(Store.i.isPageRead(b.id, pg) ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                color: Store.i.isPageRead(b.id, pg) ? C.accent(context) : ink.withValues(alpha: 0.6)),
+            onPressed: () {
+              Store.i.togglePageRead(b.id, pg);
+              setState(() {});
+            },
+          ),
+          IconButton(
             tooltip: 'التالية',
             icon: Icon(Icons.chevron_left_rounded, color: ink),
             onPressed: pg < total ? () => _step(1) : null,
@@ -396,6 +414,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 clearSel();
               }),
             sep(),
+            if (text.contains('﴿'))
+              item(ico(Icons.auto_stories_outlined), 'انسخ الآية', () {
+                // the ayah with its marks and number: text between ﴿ and ﴾
+                final ayat = RegExp('﴿[^﴾]*﴾').allMatches(text).map((m) => m.group(0)!).join(' ');
+                Clipboard.setData(ClipboardData(text: quoteText(b, ayat, src)));
+                clearSel();
+                toast(context, 'نُسخت الآية مع تشكيلها ورقمها ومصدرها');
+              }),
             item(ico(Icons.copy_rounded), 'نسخ', () {
               Clipboard.setData(ClipboardData(text: text));
               clearSel();

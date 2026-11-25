@@ -105,20 +105,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
           else if (color >= 0)
             for (final h in list) _KeptCard(h, kind: 0)
           else
-            // everything, gathered under each colour's name
-            for (var c = 0; c < s.colors.length; c++)
-              if (list.any((h) => h.color == c)) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                  child: Row(children: [
-                    CircleAvatar(backgroundColor: hlSolid(c), radius: 7),
-                    const SizedBox(width: 8),
-                    Text('${hlName(c)} (${Ar.num(list.where((h) => h.color == c).length)})',
-                        style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: C.ink(context))),
-                  ]),
-                ),
-                for (final h in list.where((h) => h.color == c)) _KeptCard(h, kind: 0),
-              ],
+            // everything, gathered under each book's name
+            for (final bid in {for (final h in list) h.book}) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                child: Text('${Catalog.byId[bid]?.shortName ?? 'كتاب'} (${Ar.num(list.where((h) => h.book == bid).length)})',
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: C.ink(context))),
+              ),
+              for (final h in list.where((h) => h.book == bid)) _KeptCard(h, kind: 0),
+            ],
         ]);
       case 1:
         if (s.quotes.isEmpty) {

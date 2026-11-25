@@ -81,6 +81,8 @@ class Store extends ChangeNotifier {
 
   // reading
   final Map<int, int> lastPg = {};
+  /// Pages the reader marked as read: book id → page numbers.
+  final Map<int, Set<int>> pagesRead = {};
   final List<int> recent = [];
   final Set<int> downloaded = {};
   final Set<String> favFawaid = {}; // sayings the reader kept
@@ -119,6 +121,9 @@ class Store extends ChangeNotifier {
     try {
       final lp = jsonDecode(p.getString('lastPg') ?? '{}') as Map<String, dynamic>;
       lp.forEach((k, v) => lastPg[int.parse(k)] = (v as num).toInt());
+      (jsonDecode(p.getString('pagesRead') ?? '{}') as Map<String, dynamic>).forEach((k, v) {
+        pagesRead[int.parse(k)] = {for (final e in (v as List)) (e as num).toInt()};
+      });
       recent.addAll((jsonDecode(p.getString('recent') ?? '[]') as List).map((e) => (e as num).toInt()));
       (jsonDecode(p.getString('pdfOffset') ?? '{}') as Map<String, dynamic>).forEach((k, v) => pdfOffset[k] = (v as num).toInt());
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
@@ -165,6 +170,7 @@ class Store extends ChangeNotifier {
     p.setString('review', jsonEncode(review));
     p.setString('pdfOffset', jsonEncode(pdfOffset));
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
+    p.setString('pagesRead', jsonEncode(pagesRead.map((k, v) => MapEntry('$k', v.toList()))));
     p.setString('recent', jsonEncode(recent));
     p.setString('downloaded', jsonEncode(downloaded.toList()));
     p.setString('favFawaid', jsonEncode(favFawaid.toList()));
@@ -281,6 +287,19 @@ class Store extends ChangeNotifier {
 
   bool isReview(String id) => review.containsKey(id);
 
+  bool isPageRead(int book, int pg) => pagesRead[book]?.contains(pg) ?? false;
+
+  /// Marks a page as read, or takes the mark away.
+  void togglePageRead(int book, int pg) {
+    final set = pagesRead.putIfAbsent(book, () => <int>{});
+    if (!set.remove(pg)) set.add(pg);
+    if (set.isEmpty) pagesRead.remove(book);
+    changed();
+  }
+
+  /// The share of a book marked as read, from 0 to 1.
+  double readShare(int book, int total) => total <= 0 ? 0 : ((pagesRead[book]?.length ?? 0) / total).clamp(0.0, 1.0);
+
   /// Puts a kept item to review (or takes it out). New items are due tomorrow.
   void toggleReview(Kept k) {
     if (review.remove(k.id) == null) review[k.id] = [0, now() + reviewDays[0] * 86400000];
@@ -370,6 +389,7 @@ class Store extends ChangeNotifier {
         'recent': recent,
         'favFawaid': favFawaid.toList(),
         'readLater': readLater,
+        'pagesRead': pagesRead.map((k, v) => MapEntry('$k', v.toList())),
         'bookmarks': bookmarks.map((e) => e.toJson()).toList(),
         'highlights': highlights.map((e) => e.toJson()).toList(),
         'quotes': quotes.map((e) => e.toJson()).toList(),
@@ -405,6 +425,9 @@ class Store extends ChangeNotifier {
       colors.add(HlColor(((cs[i] as Map)['v'] as num).toInt(), '${cs[i]['n']}'));
     }
     (j['lastPg'] as Map<String, dynamic>? ?? {}).forEach((k, v) => lastPg.putIfAbsent(int.parse(k), () => (v as num).toInt()));
+    (j['pagesRead'] as Map<String, dynamic>? ?? {}).forEach((k, v) {
+      pagesRead.putIfAbsent(int.parse(k), () => {for (final e in (v as List)) (e as num).toInt()});
+    });
     favFawaid.addAll((j['favFawaid'] as List? ?? const []).map((e) => '$e'));
     for (final r in (j['readLater'] as List? ?? const [])) {
       final b = (r as num).toInt();
