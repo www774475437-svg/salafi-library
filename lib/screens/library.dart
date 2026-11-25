@@ -23,6 +23,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   int color = -1; // highlight filter
   String topic = ''; // quotes filter
 
+  String quoteQuery = '';
   static const _tabs = ['المظلّلات', 'الاقتباسات', 'الفواصل', 'المحمّلة', 'قرأتُ', 'الملاحظات', 'سأقرؤه لاحقًا'];
 
   @override
@@ -134,7 +135,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
             ]),
           const SizedBox(height: 8),
-          for (final q in shown) _KeptCard(q, kind: 1),
+          TextField(
+            decoration: const InputDecoration(hintText: 'ابحث في اقتباساتك…', prefixIcon: Icon(Icons.search_rounded), isDense: true),
+            onChanged: (v) => setState(() => quoteQuery = v.trim()),
+          ),
+          const SizedBox(height: 8),
+          for (final q in shown.where((q) => quoteQuery.isEmpty || q.text.contains(quoteQuery) || q.note.contains(quoteQuery)))
+            _KeptCard(q, kind: 1),
         ]);
       case 2:
         return s.bookmarks.isEmpty

@@ -144,6 +144,14 @@ class HomeScreen extends StatelessWidget {
                 text: 'لم تفتح «${Catalog.byId[Store.i.recent.first]!.shortName}» منذ ${Ar.num(Store.i.idleDays())} أيام.',
                 onTap: () => openReader(context, Catalog.byId[Store.i.recent.first]!, Store.i.lastPg[Store.i.recent.first] ?? 1),
               ),
+            for (final e in Store.i.pagesRead.entries)
+                if (Catalog.byId[e.key] != null && Store.i.readShare(e.key, Catalog.byId[e.key]!.pages) >= 0.9 && Store.i.readShare(e.key, Catalog.byId[e.key]!.pages) < 1)
+                  _Banner(
+                    icon: Icons.flag_rounded,
+                    title: 'قاربتَ على الختم',
+                    text: 'بقي على «${Catalog.byId[e.key]!.shortName}» ${Ar.num(Catalog.byId[e.key]!.pages - e.value.length)} صفحات.',
+                    onTap: () => openReader(context, Catalog.byId[e.key]!, Store.i.lastPg[e.key] ?? 1),
+                  ),
             if (rateReminderDue())
               _Banner(icon: Icons.thumb_up_alt_outlined, title: 'قيّم التطبيق', text: 'تقييمك يعين على وصول المكتبة إلى غيرك.', onTap: () => rateApp(context)),
             if (lastHl != null && Catalog.byId[lastHl.book] != null) ...[
