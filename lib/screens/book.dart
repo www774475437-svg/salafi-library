@@ -210,7 +210,10 @@ class TocList extends StatelessWidget {
   final void Function(int pg) onOpen;
   final bool shrink;
   final int? current;
-  const TocList(this.index, {super.key, required this.onOpen, this.shrink = false, this.current});
+  /// With [bookId] and [pages], each chapter shows the share of it marked as read.
+  final int? bookId;
+  final int pages;
+  const TocList(this.index, {super.key, required this.onOpen, this.shrink = false, this.current, this.bookId, this.pages = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +221,13 @@ class TocList extends StatelessWidget {
     Widget item(int i) {
       final h = hs[i];
       final on = current != null && index.headingAt(current!) == h;
+      double? share;
+      if (bookId != null && pages > 0) {
+        final end = i + 1 < hs.length ? hs[i + 1].pg : pages + 1;
+        final span = end - h.pg;
+        final marked = (Store.i.pagesRead[bookId] ?? const <int>{}).where((p) => p >= h.pg && p < end).length;
+        if (span > 0 && marked > 0) share = (marked / span).clamp(0.0, 1.0);
+      }
       return InkWell(
         onTap: () => onOpen(h.pg),
         child: Container(
@@ -234,6 +244,8 @@ class TocList extends StatelessWidget {
                       color: on ? C.accent(context) : C.ink(context))),
             ),
             const SizedBox(width: 10),
+            if (share != null)
+              Text('${Ar.num((share * 100).round())}٪  ', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.accent(context))),
             Text(index.label(h.pg), style: TextStyle(fontSize: 12.5, color: C.muted(context))),
           ]),
         ),

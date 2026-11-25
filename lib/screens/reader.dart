@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import '../catalog.dart';
 import '../screen.dart';
 import '../files/files.dart';
+import 'dart:async';
+
 import '../store.dart';
 import '../text.dart';
 import '../turath.dart';
@@ -88,6 +90,8 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   static bool _warnedSmall = false;
+  final DateTime _opened = DateTime.now();
+  Timer? _tick;
   PageController _pc = PageController();
   final _flowCtl = ItemScrollController();
   final _flowPos = ItemPositionsListener.create();
@@ -137,6 +141,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
+    // refreshes the minutes shown for this session
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // once per opening: small text on a small screen is easy to miss
       if (!mounted || _warnedSmall) return;
@@ -188,6 +196,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _tick?.cancel();
     Screen.keepOn(false);
     Screen.volumeKeys(null);
     _flowPos.itemPositions.removeListener(_flowMoved);
@@ -243,6 +252,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 Text(heading.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.6))),
             ]),
             actions: [
+              IconButton(
+                tooltip: 'انسخ عنوان الباب',
+                icon: const Icon(Icons.content_copy_outlined),
+                onPressed: heading == null
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(text: '${b.shortName}: ${heading.title}'));
+                        toast(context, 'نُسخ عنوان الباب مع اسم الكتاب');
+                      },
+              ),
               IconButton(
                 tooltip: marked ? 'إزالة الفاصلة' : 'ضع فاصلة هنا',
                 icon: Icon(marked ? Icons.bookmark_rounded : Icons.bookmark_add_outlined, color: marked ? C.gold(context) : null),
@@ -338,7 +357,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             borderRadius: BorderRadius.circular(10),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-              child: Text('${label(pg)}\n${Ar.num(pg)} / ${Ar.num(total)}',
+              child: Text('${label(pg)}\n${Ar.num(pg)} / ${Ar.num(total)}\n${Ar.num(DateTime.now().difference(_opened).inMinutes)} د في هذه الجلسة',
                   textAlign: TextAlign.center, style: TextStyle(fontSize: 12, height: 1.4, color: ink.withValues(alpha: 0.75))),
             ),
           ),
@@ -535,7 +554,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           Text('الفهرس', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: C.ink(c))),
           const SizedBox(height: 6),
           Expanded(
-            child: TocList(ix, current: pg, onOpen: (p) {
+            child: TocList(ix, current: pg, bookId: b.id, pages: b.pages, onOpen: (p) {
               Navigator.pop(c);
               goTo(p);
             }),

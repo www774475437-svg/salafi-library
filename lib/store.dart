@@ -129,6 +129,7 @@ class Store extends ChangeNotifier {
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
       favFawaid.addAll((jsonDecode(p.getString('favFawaid') ?? '[]') as List).map((e) => '$e'));
       readLater.addAll((jsonDecode(p.getString('readLater') ?? '[]') as List).map((e) => (e as num).toInt()));
+      lastReadAt = p.getInt('lastReadAt') ?? 0;
       (jsonDecode(p.getString('review') ?? '{}') as Map<String, dynamic>).forEach((k, v) {
         final l = (v as List).map((e) => (e as num).toInt()).toList();
         if (l.length == 2) review[k] = l;
@@ -167,6 +168,7 @@ class Store extends ChangeNotifier {
     p.setBool('keepOn', keepOn);
     p.setBool('volKeys', volKeys);
     p.setString('readLater', jsonEncode(readLater));
+    p.setInt('lastReadAt', lastReadAt);
     p.setString('review', jsonEncode(review));
     p.setString('pdfOffset', jsonEncode(pdfOffset));
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
@@ -200,7 +202,14 @@ class Store extends ChangeNotifier {
   }
 
   /// Remembers where the reader stopped (saved quietly, no rebuild of the whole app).
+  /// When the reader last opened a book (ms since the epoch); 0 if never.
+  int lastReadAt = 0;
+
+  /// Days since the last reading, 0 if never read or read today.
+  int idleDays() => lastReadAt == 0 ? 0 : DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(lastReadAt)).inDays;
+
   void readAt(int book, int pg) {
+    lastReadAt = DateTime.now().millisecondsSinceEpoch;
     lastPg[book] = pg;
     recent.remove(book);
     recent.insert(0, book);

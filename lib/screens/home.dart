@@ -137,6 +137,13 @@ class HomeScreen extends StatelessWidget {
                 ]);
               }),
             ),
+            if (Store.i.recent.isNotEmpty && Store.i.idleDays() >= 3 && Catalog.byId[Store.i.recent.first] != null)
+              _Banner(
+                icon: Icons.schedule_rounded,
+                title: 'استأنف قراءتك',
+                text: 'لم تفتح «${Catalog.byId[Store.i.recent.first]!.shortName}» منذ ${Ar.num(Store.i.idleDays())} أيام.',
+                onTap: () => openReader(context, Catalog.byId[Store.i.recent.first]!, Store.i.lastPg[Store.i.recent.first] ?? 1),
+              ),
             if (rateReminderDue())
               _Banner(icon: Icons.thumb_up_alt_outlined, title: 'قيّم التطبيق', text: 'تقييمك يعين على وصول المكتبة إلى غيرك.', onTap: () => rateApp(context)),
             if (lastHl != null && Catalog.byId[lastHl.book] != null) ...[
