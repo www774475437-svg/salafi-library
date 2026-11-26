@@ -459,6 +459,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
               clearSel();
               if (mounted) toast(this.context, topic.isEmpty ? 'حُفظ في اقتباساتك في «مكتبتي»' : 'حُفظ في اقتباساتك تحت «$topic»');
             }),
+            if (under != null)
+              item(ico(Icons.format_quote_rounded), 'اقتبس المظلّل', () async {
+                final h = under;
+                final topic = await pickTopic(context);
+                if (topic == null || !mounted) return;
+                st.addQuote(b.id, h.pg, h.text, h.label, topic: topic);
+                clearSel();
+                if (mounted) toast(this.context, 'حُفظ النص المظلّل في اقتباساتك');
+              }),
             item(ico(Icons.share_rounded), 'مشاركة', () => Share.share(quoteText(b, text, src))),
             item(ico(Icons.image_outlined), 'مشاركة صورة',
                 () => showQuoteImage(context, text: text, scholar: b.scholar.collection ? '' : '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),

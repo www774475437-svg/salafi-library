@@ -11,6 +11,7 @@ import 'book.dart';
 import 'fawaid.dart';
 import 'more.dart';
 import 'extras.dart';
+import 'glance.dart';
 import 'review.dart';
 import 'reader.dart';
 import 'scholar.dart';
@@ -134,6 +135,7 @@ class HomeScreen extends StatelessWidget {
                   tile(Icons.forum_outlined, 'فوائد القرّاء', 'ما ينشره القرّاء من اقتباساتهم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadersFawaidScreen()))),
                   tile(Icons.autorenew_rounded, 'احفظ وراجِع', Store.i.dueReviews().isEmpty ? 'مراجعة ما حفظته في أوقات متباعدة' : 'لديك ${Ar.num(Store.i.dueReviews().length)} للمراجعة الآن', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewScreen()))),
                   tile(Icons.school_outlined, 'منهج طالب العلم', 'كتب مرتّبة بالتدرّج', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MinhajScreen()))),
+                  tile(Icons.history_rounded, 'الاطلاع السريع', 'اليوم وسجل قراءتك كله', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QuickGlanceScreen()))),
                   tile(Icons.insights_outlined, 'إحصاءات القراءة', 'كم صفحة قرأتَ هذا الأسبوع', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()))),
                   tile(Icons.collections_bookmark_outlined, 'قوائمي للكتب', 'قوائم مسمّاة تجمع كتبك', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShelvesScreen()))),
                   tile(Icons.sort_rounded, 'الترتيب', 'ترتيب الكتب والاقتباسات', () => showSortSheet(context)),

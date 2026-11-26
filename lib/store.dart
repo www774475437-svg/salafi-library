@@ -103,6 +103,8 @@ class Store extends ChangeNotifier {
   final List<Kept> highlights = [];
   final List<Kept> quotes = [];
   final List<Kept> notes = [];
+  /// The reading log, newest first: {t: ms, k: kind, b: book, p: page, x: text}.
+  final List<Map<String, dynamic>> readLog = [];
   /// Items put to review: kept id → [stage, due time in ms].
   final Map<String, List<int>> review = {};
   final List<HlColor> colors = [HlColor(0xFFD54F, 'أصفر'), HlColor(0xEF5350, 'أحمر'), HlColor(0x66BB6A, 'أخضر')];
@@ -157,6 +159,7 @@ class Store extends ChangeNotifier {
       highlights.addAll(_list('highlights'));
       quotes.addAll(_list('quotes'));
       notes.addAll(_list('notes'));
+      readLog.addAll((jsonDecode(p.getString('readLog') ?? '[]') as List).map((e) => Map<String, dynamic>.from(e as Map)));
       final cs = jsonDecode(p.getString('colors') ?? '[]') as List;
       if (cs.isNotEmpty) {
         colors
@@ -204,6 +207,7 @@ class Store extends ChangeNotifier {
     p.setString('highlights', jsonEncode(highlights.map((e) => e.toJson()).toList()));
     p.setString('quotes', jsonEncode(quotes.map((e) => e.toJson()).toList()));
     p.setString('notes', jsonEncode(notes.map((e) => e.toJson()).toList()));
+    p.setString('readLog', jsonEncode(readLog));
     p.setString('colors', jsonEncode([for (final c in colors) {'v': c.value, 'n': c.name}]));
   }
 
@@ -295,8 +299,21 @@ class Store extends ChangeNotifier {
     changed();
   }
 
+  /// Adds one entry to the reading log (kept to the latest 500).
+  void logEvent(String kind, int book, int pg, [String text = '']) {
+    readLog.insert(0, {'t': now(), 'k': kind, 'b': book, 'p': pg, 'x': text.length > 160 ? text.substring(0, 160) : text});
+    if (readLog.length > 500) readLog.removeRange(500, readLog.length);
+  }
+
+  /// Today's entries of the reading log, newest first.
+  List<Map<String, dynamic>> logToday() {
+    final k = dayKey();
+    return [for (final e in readLog) if (dayKey(DateTime.fromMillisecondsSinceEpoch(e['t'] as int)) == k) e];
+  }
+
   void readAt(int book, int pg) {
     countPage();
+    logEvent('open', book, pg);
     lastReadAt = DateTime.now().millisecondsSinceEpoch;
     lastPg[book] = pg;
     recent.remove(book);
@@ -336,6 +353,7 @@ class Store extends ChangeNotifier {
   Kept addHighlight(int book, int pg, String text, int color, String label) {
     final k = Kept(id: newId(), book: book, pg: pg, text: text.trim(), color: color, label: label, at: now());
     highlights.insert(0, k);
+    logEvent('hl', book, pg, text);
     changed();
     return k;
   }
@@ -343,6 +361,7 @@ class Store extends ChangeNotifier {
   Kept addQuote(int book, int pg, String text, String label, {String topic = ''}) {
     final k = Kept(id: newId(), book: book, pg: pg, text: text.trim(), label: label, at: now(), topic: topic);
     quotes.insert(0, k);
+    logEvent('quote', book, pg, text);
     changed();
     return k;
   }
@@ -389,7 +408,10 @@ class Store extends ChangeNotifier {
   /// Marks a page as read, or takes the mark away.
   void togglePageRead(int book, int pg) {
     final set = pagesRead.putIfAbsent(book, () => <int>{});
-    if (!set.remove(pg)) set.add(pg);
+    if (!set.remove(pg)) {
+      set.add(pg);
+      logEvent('read', book, pg);
+    }
     if (set.isEmpty) pagesRead.remove(book);
     changed();
   }

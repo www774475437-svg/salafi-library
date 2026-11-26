@@ -10,18 +10,39 @@ import '../ui.dart';
 /// Shows the quote as a card and shares it as a picture.
 void showQuoteImage(BuildContext context, {required String text, required String scholar, required String source}) {
   final key = GlobalKey();
+  var tpl = 0;
   showDialog(
     context: context,
-    builder: (c) => Dialog(
+    builder: (c) => StatefulBuilder(
+      builder: (c, setSt) => Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       backgroundColor: Colors.transparent,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Flexible(
           child: SingleChildScrollView(
-            child: RepaintBoundary(key: key, child: _Card(text: text.trim(), scholar: scholar, source: source)),
+            child: RepaintBoundary(key: key, child: _Card(text: text.trim(), scholar: scholar, source: source, tpl: tpl)),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (var i = 0; i < cardTemplates.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: GestureDetector(
+                onTap: () => setSt(() => tpl = i),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(colors: cardTemplates[i].$1, begin: Alignment.topRight, end: Alignment.bottomLeft),
+                    border: Border.all(color: tpl == i ? Colors.white : Colors.white24, width: tpl == i ? 3 : 1),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+        const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           FilledButton.icon(
             style: FilledButton.styleFrom(shape: const StadiumBorder(), padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13)),
@@ -38,8 +59,17 @@ void showQuoteImage(BuildContext context, {required String text, required String
         ]),
       ]),
     ),
+    ),
   );
 }
+
+/// Colour templates of the quote card: the two gradient colours and the gold of the frame.
+const cardTemplates = <(List<Color>, Color)>[
+  ([Color(0xFF17493B), Color(0xFF2E7A62)], Color(0xFFE1C478)), // أخضر وذهبي
+  ([Color(0xFF0E1B2E), Color(0xFF1F4E79)], Color(0xFFE6C36A)), // أزرق ليلي وذهبي
+  ([Color(0xFF2B1B12), Color(0xFF6B4226)], Color(0xFFF0D9A8)), // بني داكن
+  ([Color(0xFF1C1C1C), Color(0xFF3A3A3A)], Color(0xFFD9D9D9)), // فحمي وفضي
+];
 
 Future<void> _share(BuildContext context, GlobalKey key) async {
   try {
@@ -55,18 +85,20 @@ Future<void> _share(BuildContext context, GlobalKey key) async {
 
 class _Card extends StatelessWidget {
   final String text, scholar, source;
-  const _Card({required this.text, required this.scholar, required this.source});
+  final int tpl;
+  const _Card({required this.text, required this.scholar, required this.source, this.tpl = 0});
   @override
   Widget build(BuildContext context) {
     const cream = Color(0xFFF6EED6);
-    const goldC = Color(0xFFE1C478);
+    final t = cardTemplates[tpl.clamp(0, cardTemplates.length - 1)];
+    final goldC = t.$2;
     final n = text.length;
     final size = n < 120 ? 23.0 : n < 260 ? 20.0 : n < 500 ? 17.5 : 15.5;
     return Container(
       width: 360,
       padding: const EdgeInsets.all(10),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Color(0xFF17493B), Color(0xFF2E7A62)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+        gradient: LinearGradient(colors: t.$1, begin: Alignment.topRight, end: Alignment.bottomLeft),
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),

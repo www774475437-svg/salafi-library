@@ -1,4 +1,7 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -105,6 +108,13 @@ class SettingsScreen extends StatelessWidget {
                   Share.share(st.exportText((id) => Catalog.byId[id]?.shortName ?? 'كتاب'));
                 },
               ),
+              _Row(
+                icon: Icons.save_alt_rounded,
+                title: 'احفظ نسخة كملف',
+                sub: 'يُحفظ ملف النسخة في التنزيلات أو الملفات، أو تشاركه',
+                onTap: () => _saveFile(context),
+              ),
+              _Row(icon: Icons.restore_rounded, title: 'استعادة نسخة احتياطية', sub: 'اختر ملف النسخة الذي حفظته، فيُضاف كل شيء', onTap: () => _restoreFile(context)),
               _Row(icon: Icons.download_rounded, title: 'أرجع نسخة', sub: 'الصق النص الذي نسخته من قبل', onTap: () => _restore(context)),
             ]),
             _Group(title: 'عن التطبيق', children: [
@@ -134,6 +144,30 @@ class SettingsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  /// Saves everything personal as a JSON file, and opens the share sheet so it can be saved to Downloads.
+  Future<void> _saveFile(BuildContext context) async {
+    try {
+      final name = 'salafi-backup-${Store.dayKey()}.json';
+      final bytes = Uint8List.fromList(utf8.encode(Store.i.backup()));
+      await Share.shareXFiles([XFile.fromData(bytes, mimeType: 'application/json', name: name)], fileNameOverrides: [name], subject: 'نسخة احتياطية من مكتبة العلماء السلفية');
+    } catch (_) {
+      if (context.mounted) toast(context, 'تعذّر حفظ الملف');
+    }
+  }
+
+  /// Restores from a backup file chosen by the reader. Nothing already here is removed.
+  Future<void> _restoreFile(BuildContext context) async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json'], withData: true);
+      final bytes = picked?.files.single.bytes;
+      if (bytes == null || !context.mounted) return;
+      final n = Store.i.restore(utf8.decode(bytes));
+      toast(context, 'أُرجع ${Ar.num(n)} عنصرًا');
+    } catch (_) {
+      if (context.mounted) toast(context, 'هذا الملف ليس نسخة احتياطية صحيحة');
+    }
   }
 
   Future<void> _restore(BuildContext context) async {
