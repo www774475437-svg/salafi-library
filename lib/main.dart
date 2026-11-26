@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show BrowserContextMenu;
 import 'catalog.dart';
 import 'fawaid.dart';
 import 'screens/home.dart';
+import 'screens/more.dart' show ReadersFawaidScreen;
 import 'screens/library.dart';
 import 'screens/search.dart';
 import 'screens/settings.dart';
@@ -90,7 +91,30 @@ class Shell extends StatelessWidget {
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: C.dark(context) ? 0.4 : 0.08), blurRadius: 18, offset: const Offset(0, 6))],
               ),
               child: Row(children: [
-                for (var i = 0; i < _tabs.length; i++)
+                for (var i = 0; i < _tabs.length; i++) ...[
+                  if (i == 2)
+                    // the readers' sayings sit in the middle, a little raised
+                    Expanded(
+                      child: Transform.translate(
+                        offset: const Offset(0, -12),
+                        child: Center(
+                          child: Material(
+                            color: C.accent(context),
+                            shape: const CircleBorder(),
+                            elevation: 4,
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadersFawaidScreen())),
+                              child: const SizedBox(
+                                width: 58,
+                                height: 58,
+                                child: Icon(Icons.forum_rounded, color: Colors.white, size: 26),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(30),
@@ -114,6 +138,7 @@ class Shell extends StatelessWidget {
                       ]),
                     ),
                   ),
+                ],
               ]),
             ),
           ),

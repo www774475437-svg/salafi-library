@@ -10,6 +10,7 @@ import '../turath.dart';
 import '../ui.dart';
 import '../update.dart';
 import 'reader.dart';
+import 'readers_feed.dart';
 import 'scholar.dart' show BookTile;
 
 /// Opens a page at random from the whole library.
@@ -228,7 +229,7 @@ class ReadersFawaidScreen extends StatelessWidget {
           bottom: const TabBar(tabs: [Tab(text: 'الجديد'), Tab(text: 'من أتابعهم'), Tab(text: 'ملفّي')]),
         ),
         body: TabBarView(children: [
-          const EmptyNote(Icons.forum_outlined, 'هنا تظهر الفوائد التي ينشرها القرّاء من اقتباساتهم، مع الإعجاب والمتابعة.\nيتوفّر قريبًا بإذن الله.'),
+          const ReadersFeed(),
           const EmptyNote(Icons.group_outlined, 'هنا تظهر فوائد من تتابعهم.\nيتوفّر قريبًا بإذن الله.'),
           ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 30), children: [
             SoftCard(
