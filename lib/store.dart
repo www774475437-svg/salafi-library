@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'catalog.dart';
+
 /// Something the reader kept: a bookmark (فاصلة), a highlight (تظليل) or a quote (اقتباس).
 class Kept {
   final String id;
@@ -83,6 +85,16 @@ class Store extends ChangeNotifier {
   final Map<int, int> lastPg = {};
   /// Pages the reader marked as read: book id → page numbers.
   final Map<int, Set<int>> pagesRead = {};
+  /// How books are listed: 0 as in the index, 1 last read, 2 by size, 3 by name.
+  int bookSort = 0;
+  /// How quotes are listed: 0 newest first, 1 as saved, 2 by book, 3 by author.
+  int quoteSort = 0;
+  /// Named lists of books: name → book ids.
+  final Map<String, List<int>> shelves = {};
+  /// Pages turned per day, keyed by [dayKey].
+  final Map<String, int> dayPages = {};
+  /// The daily reading time in minutes after midnight; -1 when not set.
+  int dailyMinutes = -1;
   final List<int> recent = [];
   final Set<int> downloaded = {};
   final Set<String> favFawaid = {}; // sayings the reader kept
@@ -121,6 +133,13 @@ class Store extends ChangeNotifier {
     try {
       final lp = jsonDecode(p.getString('lastPg') ?? '{}') as Map<String, dynamic>;
       lp.forEach((k, v) => lastPg[int.parse(k)] = (v as num).toInt());
+      bookSort = p.getInt('bookSort') ?? 0;
+      quoteSort = p.getInt('quoteSort') ?? 0;
+      dailyMinutes = p.getInt('dailyMinutes') ?? -1;
+      (jsonDecode(p.getString('shelves') ?? '{}') as Map<String, dynamic>).forEach((k, v) {
+        shelves[k] = [for (final e in (v as List)) (e as num).toInt()];
+      });
+      (jsonDecode(p.getString('dayPages') ?? '{}') as Map<String, dynamic>).forEach((k, v) => dayPages[k] = (v as num).toInt());
       (jsonDecode(p.getString('pagesRead') ?? '{}') as Map<String, dynamic>).forEach((k, v) {
         pagesRead[int.parse(k)] = {for (final e in (v as List)) (e as num).toInt()};
       });
@@ -172,6 +191,11 @@ class Store extends ChangeNotifier {
     p.setString('review', jsonEncode(review));
     p.setString('pdfOffset', jsonEncode(pdfOffset));
     p.setString('lastPg', jsonEncode(lastPg.map((k, v) => MapEntry('$k', v))));
+    p.setInt('bookSort', bookSort);
+    p.setInt('quoteSort', quoteSort);
+    p.setInt('dailyMinutes', dailyMinutes);
+    p.setString('shelves', jsonEncode(shelves));
+    p.setString('dayPages', jsonEncode(dayPages));
     p.setString('pagesRead', jsonEncode(pagesRead.map((k, v) => MapEntry('$k', v.toList()))));
     p.setString('recent', jsonEncode(recent));
     p.setString('downloaded', jsonEncode(downloaded.toList()));
@@ -208,7 +232,71 @@ class Store extends ChangeNotifier {
   /// Days since the last reading, 0 if never read or read today.
   int idleDays() => lastReadAt == 0 ? 0 : DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(lastReadAt)).inDays;
 
+  /// The day key used for counting: year-month-day.
+  static String dayKey([DateTime? d]) {
+    final t = d ?? DateTime.now();
+    return '${t.year}-${t.month}-${t.day}';
+  }
+
+  /// Counts one page turned today.
+  void countPage() {
+    final k = dayKey();
+    dayPages[k] = (dayPages[k] ?? 0) + 1;
+  }
+
+  bool readToday() => (dayPages[dayKey()] ?? 0) > 0;
+
+  /// Books in the order chosen in «الترتيب».
+  List<BookInfo> sortBooks(List<BookInfo> books) {
+    final out = [...books];
+    switch (bookSort) {
+      case 1:
+        int rank(BookInfo b) {
+          final i = recent.indexOf(b.id);
+          return i < 0 ? 1 << 20 : i;
+        }
+        out.sort((a, b) => rank(a).compareTo(rank(b)));
+      case 2:
+        out.sort((a, b) => b.pages.compareTo(a.pages));
+      case 3:
+        out.sort((a, b) => a.shortName.compareTo(b.shortName));
+    }
+    return out;
+  }
+
+  void setBookSort(int v) {
+    bookSort = v;
+    changed();
+  }
+
+  void setQuoteSort(int v) {
+    quoteSort = v;
+    changed();
+  }
+
+  void setDailyMinutes(int m) {
+    dailyMinutes = m;
+    changed();
+  }
+
+  void createShelf(String name) {
+    shelves.putIfAbsent(name, () => []);
+    changed();
+  }
+
+  void deleteShelf(String name) {
+    shelves.remove(name);
+    changed();
+  }
+
+  void toggleShelf(String name, int book) {
+    final l = shelves.putIfAbsent(name, () => []);
+    if (!l.remove(book)) l.add(book);
+    changed();
+  }
+
   void readAt(int book, int pg) {
+    countPage();
     lastReadAt = DateTime.now().millisecondsSinceEpoch;
     lastPg[book] = pg;
     recent.remove(book);

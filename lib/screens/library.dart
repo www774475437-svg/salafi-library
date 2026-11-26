@@ -9,6 +9,7 @@ import '../ui.dart';
 import 'book.dart';
 import 'colors.dart';
 import 'more.dart' show ReadLaterList;
+import 'extras.dart';
 import 'reader.dart';
 import 'scholar.dart' show BookTile;
 
@@ -24,6 +25,46 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String topic = ''; // quotes filter
 
   String quoteQuery = '';
+
+  /// The quotes in the order chosen in «الترتيب», with a heading where the book or author changes.
+  List<Widget> _quoteRows(List<Kept> list) {
+    final s = Store.i;
+    final sorted = [...list];
+    switch (s.quoteSort) {
+      case 1:
+        sorted.sort((a, b) => a.at.compareTo(b.at));
+      case 2:
+        sorted.sort((a, b) {
+          final c = (Catalog.byId[a.book]?.shortName ?? '').compareTo(Catalog.byId[b.book]?.shortName ?? '');
+          return c != 0 ? c : b.at.compareTo(a.at);
+        });
+      case 3:
+        sorted.sort((a, b) {
+          final c = (Catalog.byId[a.book]?.scholar.name ?? '').compareTo(Catalog.byId[b.book]?.scholar.name ?? '');
+          return c != 0 ? c : b.at.compareTo(a.at);
+        });
+      default:
+        sorted.sort((a, b) => b.at.compareTo(a.at));
+    }
+    final out = <Widget>[];
+    String? last;
+    for (final q in sorted) {
+      final key = switch (s.quoteSort) {
+        2 => Catalog.byId[q.book]?.shortName ?? 'كتاب',
+        3 => Catalog.byId[q.book]?.scholar.name ?? '',
+        _ => null,
+      };
+      if (key != null && key != last) {
+        last = key;
+        out.add(Padding(
+          padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+          child: Text(key, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: C.ink(context))),
+        ));
+      }
+      out.add(_KeptCard(q, kind: 1));
+    }
+    return out;
+  }
   static const _tabs = ['المظلّلات', 'الاقتباسات', 'الفواصل', 'المحمّلة', 'قرأتُ', 'الملاحظات', 'سأقرؤه لاحقًا'];
 
   @override
@@ -135,13 +176,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
             ]),
           const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ActionChip(
+              avatar: const Icon(Icons.sort_rounded, size: 18),
+              label: const Text('ترتيب'),
+              onPressed: () => showSortSheet(context),
+            ),
+          ),
           TextField(
             decoration: const InputDecoration(hintText: 'ابحث في اقتباساتك…', prefixIcon: Icon(Icons.search_rounded), isDense: true),
             onChanged: (v) => setState(() => quoteQuery = v.trim()),
           ),
           const SizedBox(height: 8),
-          for (final q in shown.where((q) => quoteQuery.isEmpty || q.text.contains(quoteQuery) || q.note.contains(quoteQuery)))
-            _KeptCard(q, kind: 1),
+          ..._quoteRows(shown.where((q) => quoteQuery.isEmpty || q.text.contains(quoteQuery) || q.note.contains(quoteQuery)).toList()),
         ]);
       case 2:
         return s.bookmarks.isEmpty

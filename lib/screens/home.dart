@@ -10,6 +10,7 @@ import '../update.dart';
 import 'book.dart';
 import 'fawaid.dart';
 import 'more.dart';
+import 'extras.dart';
 import 'review.dart';
 import 'reader.dart';
 import 'scholar.dart';
@@ -133,6 +134,10 @@ class HomeScreen extends StatelessWidget {
                   tile(Icons.forum_outlined, 'فوائد القرّاء', 'ما ينشره القرّاء من اقتباساتهم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadersFawaidScreen()))),
                   tile(Icons.autorenew_rounded, 'احفظ وراجِع', Store.i.dueReviews().isEmpty ? 'مراجعة ما حفظته في أوقات متباعدة' : 'لديك ${Ar.num(Store.i.dueReviews().length)} للمراجعة الآن', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewScreen()))),
                   tile(Icons.school_outlined, 'منهج طالب العلم', 'كتب مرتّبة بالتدرّج', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MinhajScreen()))),
+                  tile(Icons.insights_outlined, 'إحصاءات القراءة', 'كم صفحة قرأتَ هذا الأسبوع', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()))),
+                  tile(Icons.collections_bookmark_outlined, 'قوائمي للكتب', 'قوائم مسمّاة تجمع كتبك', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShelvesScreen()))),
+                  tile(Icons.sort_rounded, 'الترتيب', 'ترتيب الكتب والاقتباسات', () => showSortSheet(context)),
+                  tile(Icons.alarm_rounded, 'وقت القراءة اليومي', Store.i.dailyMinutes >= 0 ? 'في ${dailyText()}' : 'حدّد وقتًا يذكّرك بالقراءة', () => setDailyReminder(context)),
                   tile(Icons.shuffle_rounded, 'افتح لي صفحة', 'صفحة عشوائية من المكتبة', () => openRandomPage(context)),
                 ]);
               }),
@@ -152,6 +157,8 @@ class HomeScreen extends StatelessWidget {
                     text: 'بقي على «${Catalog.byId[e.key]!.shortName}» ${Ar.num(Catalog.byId[e.key]!.pages - e.value.length)} صفحات.',
                     onTap: () => openReader(context, Catalog.byId[e.key]!, Store.i.lastPg[e.key] ?? 1),
                   ),
+            if (Store.i.dailyMinutes >= 0 && !Store.i.readToday() && (DateTime.now().hour * 60 + DateTime.now().minute) >= Store.i.dailyMinutes)
+              _Banner(icon: Icons.alarm_rounded, title: 'وقت قراءتك اليومي', text: 'لم تقرأ اليوم بعد، ولو صفحة واحدة.', onTap: () => openLastBook(context)),
             if (rateReminderDue())
               _Banner(icon: Icons.thumb_up_alt_outlined, title: 'قيّم التطبيق', text: 'تقييمك يعين على وصول المكتبة إلى غيرك.', onTap: () => rateApp(context)),
             if (lastHl != null && Catalog.byId[lastHl.book] != null) ...[

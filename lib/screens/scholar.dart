@@ -104,7 +104,7 @@ class _ScholarScreenState extends State<ScholarScreen> {
           else if (books.isEmpty)
             const EmptyNote(Icons.search_off_rounded, 'لا يوجد كتاب بهذا الاسم.')
           else
-            for (final b in books) BookTile(b),
+            for (final b in Store.i.sortBooks(books)) BookTile(b),
         ]),
       ),
     );
