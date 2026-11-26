@@ -138,7 +138,7 @@ class BookTile extends StatelessWidget {
           height: 56,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            gradient: const LinearGradient(colors: [Color(0xFF1F5C4A), Color(0xFF2E7A62)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+            gradient: const LinearGradient(colors: [Color(0xFF23466E), Color(0xFF2F5F94)], begin: Alignment.topRight, end: Alignment.bottomLeft),
             border: Border.all(color: C.gold(context).withValues(alpha: 0.7)),
           ),
           child: Icon(Store.i.downloaded.contains(b.id) ? Icons.download_done_rounded : Icons.menu_book_rounded, color: const Color(0xFFF1DFA8), size: 22),

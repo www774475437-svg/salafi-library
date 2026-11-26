@@ -26,7 +26,7 @@ if 'id="loading"' not in h:
     #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
       justify-content: center; background: #F6F3EC; z-index: 9; transition: opacity .4s; }
     #loading img { width: 128px; height: 128px; border-radius: 30px; animation: pulse 1.6s ease-in-out infinite; }
-    #loading p { color: #1F5C4A; font: 16px sans-serif; margin-top: 22px; }
+    #loading p { color: #23466E; font: 16px sans-serif; margin-top: 22px; }
     @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: .8; } }
   </style>
   <div id="loading"><img src="icons/Icon-192.png" alt=""><p>جارٍ فتح «مكتبة العلماء السلفية»…</p></div>
@@ -41,7 +41,7 @@ index.write_text(h, encoding="utf-8")
 mf = Path("web/manifest.json")
 j = json.loads(mf.read_text(encoding="utf-8"))
 j.update(name=TITLE, short_name="مكتبة العلماء", description=DESC,
-         background_color="#F6F3EC", theme_color="#1F5C4A", lang="ar", dir="rtl")
+         background_color="#F6F3EC", theme_color="#23466E", lang="ar", dir="rtl")
 mf.write_text(json.dumps(j, ensure_ascii=False, indent=2), encoding="utf-8")
 
 for f in Path("tool/web_icons").glob("*.png"):

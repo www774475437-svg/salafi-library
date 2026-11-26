@@ -211,7 +211,7 @@ class _Header extends StatelessWidget {
           height: 50,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(colors: [Color(0xFF1F5C4A), Color(0xFF2E7A62)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+            gradient: const LinearGradient(colors: [Color(0xFF23466E), Color(0xFF2F5F94)], begin: Alignment.topRight, end: Alignment.bottomLeft),
           ),
           child: const Icon(Icons.menu_book_rounded, color: Color(0xFFF1DFA8), size: 28),
         ),

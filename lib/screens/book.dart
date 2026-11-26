@@ -299,7 +299,7 @@ class _Hero extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: const BorderRadiusDirectional.only(
               topStart: Radius.circular(4), bottomStart: Radius.circular(4), topEnd: Radius.circular(12), bottomEnd: Radius.circular(12)),
-            gradient: const LinearGradient(colors: [Color(0xFF1F5C4A), Color(0xFF2E7A62)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+            gradient: const LinearGradient(colors: [Color(0xFF23466E), Color(0xFF2F5F94)], begin: Alignment.topRight, end: Alignment.bottomLeft),
             border: Border.all(color: C.gold(context), width: 1.2),
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 12, offset: const Offset(0, 5))],
           ),

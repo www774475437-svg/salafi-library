@@ -1,20 +1,20 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
-/// Colours of «مكتبة العلماء السلفية»: warm paper, deep green and gold.
+/// Colours of «مكتبة العلماء السلفية»: warm paper, deep blue and gold.
 class C {
   static bool dark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
-  static Color bg(BuildContext c) => dark(c) ? const Color(0xFF0F1513) : const Color(0xFFF6F3EC);
-  static Color card(BuildContext c) => dark(c) ? const Color(0xFF18211E) : const Color(0xFFFFFDF8);
-  static Color line(BuildContext c) => dark(c) ? const Color(0xFF2A3632) : const Color(0xFFE4DCCB);
+  static Color bg(BuildContext c) => dark(c) ? const Color(0xFF0C1421) : const Color(0xFFF6F3EC);
+  static Color card(BuildContext c) => dark(c) ? const Color(0xFF15203A) : const Color(0xFFFFFDF8);
+  static Color line(BuildContext c) => dark(c) ? const Color(0xFF2A3A57) : const Color(0xFFE4DCCB);
   static Color ink(BuildContext c) => dark(c) ? const Color(0xFFEAE4D8) : const Color(0xFF1C1F1D);
   static Color muted(BuildContext c) => dark(c) ? const Color(0xFF9AA39E) : const Color(0xFF75736C);
-  static Color accent(BuildContext c) => dark(c) ? const Color(0xFF7FC4A8) : const Color(0xFF1F5C4A);
+  static Color accent(BuildContext c) => dark(c) ? const Color(0xFF8FBDE8) : const Color(0xFF23466E);
   static Color gold(BuildContext c) => dark(c) ? const Color(0xFFD9B970) : const Color(0xFFA9832F);
-  static Color soft(BuildContext c) => dark(c) ? const Color(0xFF223029) : const Color(0xFFE9E3D4);
+  static Color soft(BuildContext c) => dark(c) ? const Color(0xFF1E2C47) : const Color(0xFFE9E3D4);
 }
 
-const green = Color(0xFF1F5C4A);
+const green = Color(0xFF23466E);
 const gold = Color(0xFFA9832F);
 const bookFont = 'Amiri';
 const uiFont = 'Tajawal';
@@ -22,8 +22,8 @@ const uiFont = 'Tajawal';
 
 ThemeData buildTheme(Brightness b) {
   final dark = b == Brightness.dark;
-  final accent = dark ? const Color(0xFF7FC4A8) : green;
-  final bg = dark ? const Color(0xFF0F1513) : const Color(0xFFF6F3EC);
+  final accent = dark ? const Color(0xFF8FBDE8) : green;
+  final bg = dark ? const Color(0xFF0C1421) : const Color(0xFFF6F3EC);
   final ink = dark ? const Color(0xFFEAE4D8) : const Color(0xFF1C1F1D);
   return ThemeData(
     brightness: b,
@@ -164,7 +164,7 @@ class ScholarMark extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(colors: [Color(0xFF1F5C4A), Color(0xFF2E7A62)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+        gradient: const LinearGradient(colors: [Color(0xFF23466E), Color(0xFF2F5F94)], begin: Alignment.topRight, end: Alignment.bottomLeft),
         border: Border.all(color: C.gold(context), width: 1.4),
       ),
       child: Text(letter, style: TextStyle(fontFamily: bookFont, fontSize: size * 0.46, color: const Color(0xFFF1DFA8), fontWeight: FontWeight.w700, height: 1.25)),
