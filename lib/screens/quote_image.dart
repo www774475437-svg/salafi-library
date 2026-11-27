@@ -97,16 +97,16 @@ class _Card extends StatelessWidget {
     return Container(
       width: 360,
       padding: const EdgeInsets.all(10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(colors: t.$1, begin: Alignment.topRight, end: Alignment.bottomLeft),
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
         decoration: BoxDecoration(border: Border.all(color: goldC, width: 1.2), borderRadius: BorderRadius.circular(14)),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.format_quote_rounded, color: goldC, size: 34),
+          Icon(Icons.format_quote_rounded, color: goldC, size: 34),
           const SizedBox(height: 4),
-          Text(scholar, textAlign: TextAlign.center, style: const TextStyle(fontFamily: uiFont, fontSize: 15, fontWeight: FontWeight.w700, color: goldC)),
+          Text(scholar, textAlign: TextAlign.center, style: TextStyle(fontFamily: uiFont, fontSize: 15, fontWeight: FontWeight.w700, color: goldC)),
           const SizedBox(height: 12),
           Text(text, textAlign: TextAlign.center, textDirection: TextDirection.rtl,
               style: TextStyle(fontFamily: bookFont, fontSize: size, height: 1.9, color: cream)),
