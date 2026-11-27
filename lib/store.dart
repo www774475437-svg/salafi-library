@@ -100,6 +100,10 @@ class Store extends ChangeNotifier {
   /// What was searched for, newest first; the pinned ones stay.
   final List<String> searches = [];
   final Set<String> pinnedSearches = {};
+  /// Plans to finish a book: book → [start (ms), days].
+  final Map<int, List<int>> plans = {};
+  /// Research notebooks: title → entries {k: 'q' quote | 't' own writing, x: text, s: source, b: book, p: page}.
+  final Map<String, List<Map<String, dynamic>>> notebooks = {};
   final Set<int> downloaded = {};
   final Set<String> favFawaid = {}; // sayings the reader kept
   final List<int> readLater = []; // books to read later
@@ -152,6 +156,8 @@ class Store extends ChangeNotifier {
       });
       recent.addAll((jsonDecode(p.getString('recent') ?? '[]') as List).map((e) => (e as num).toInt()));
       searches.addAll(p.getStringList('searches') ?? const []);
+      (jsonDecode(p.getString('plans') ?? '{}') as Map<String, dynamic>).forEach((k, v) => plans[int.parse(k)] = (v as List).map((e) => (e as num).toInt()).toList());
+      (jsonDecode(p.getString('notebooks') ?? '{}') as Map<String, dynamic>).forEach((k, v) => notebooks[k] = (v as List).map((e) => Map<String, dynamic>.from(e as Map)).toList());
       pinnedSearches.addAll(p.getStringList('pinnedSearches') ?? const []);
       (jsonDecode(p.getString('pdfOffset') ?? '{}') as Map<String, dynamic>).forEach((k, v) => pdfOffset[k] = (v as num).toInt());
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
@@ -210,6 +216,8 @@ class Store extends ChangeNotifier {
     p.setString('pagesRead', jsonEncode(pagesRead.map((k, v) => MapEntry('$k', v.toList()))));
     p.setString('recent', jsonEncode(recent));
     p.setStringList('searches', searches);
+    p.setString('plans', jsonEncode(plans.map((k, v) => MapEntry('$k', v))));
+    p.setString('notebooks', jsonEncode(notebooks));
     p.setStringList('pinnedSearches', pinnedSearches.toList());
     p.setString('downloaded', jsonEncode(downloaded.toList()));
     p.setString('favFawaid', jsonEncode(favFawaid.toList()));
@@ -307,6 +315,45 @@ class Store extends ChangeNotifier {
   void toggleShelf(String name, int book) {
     final l = shelves.putIfAbsent(name, () => []);
     if (!l.remove(book)) l.add(book);
+    changed();
+  }
+
+  void setPlan(int book, int days) {
+    final t = DateTime.now();
+    plans[book] = [DateTime(t.year, t.month, t.day).millisecondsSinceEpoch, days];
+    changed();
+  }
+
+  void removePlan(int book) {
+    plans.remove(book);
+    changed();
+  }
+
+  void createNotebook(String name) {
+    notebooks.putIfAbsent(name, () => []);
+    changed();
+  }
+
+  void deleteNotebook(String name) {
+    notebooks.remove(name);
+    changed();
+  }
+
+  void addToNotebook(String name, Map<String, dynamic> entry) {
+    notebooks[name]?.add(entry);
+    changed();
+  }
+
+  void removeFromNotebook(String name, int i) {
+    notebooks[name]?.removeAt(i);
+    changed();
+  }
+
+  void moveInNotebook(String name, int from, int to) {
+    final l = notebooks[name];
+    if (l == null) return;
+    if (to > from) to--;
+    l.insert(to, l.removeAt(from));
     changed();
   }
 

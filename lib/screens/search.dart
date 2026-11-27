@@ -307,7 +307,7 @@ class _SearchScreenState extends State<SearchScreen> {
             Text(Ar.num(e.value.length), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: C.accent(context))),
           ]),
         ),
-        for (final h in (_open.contains(e.key) ? e.value : e.value.take(3))) HitCard(h, query: _q),
+        for (final h in (_open.contains(e.key) ? e.value : e.value.take(3))) HitCard(h, query: _q, pages: [for (final x in e.value) x.pg]),
         if (e.value.length > 3)
           Align(
             alignment: AlignmentDirectional.centerStart,
@@ -328,7 +328,8 @@ class HitCard extends StatelessWidget {
   final SearchHit h;
   final String query;
   final void Function(int pg)? onOpen;
-  const HitCard(this.h, {super.key, required this.query, this.onOpen});
+  final List<int> pages; // the pages of the other results in the same book
+  const HitCard(this.h, {super.key, required this.query, this.onOpen, this.pages = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +354,7 @@ class HitCard extends StatelessWidget {
           Navigator.pop(context);
           onOpen!(h.pg);
         } else {
-          openReader(context, book, h.pg);
+          openReader(context, book, h.pg, find: query, hits: pages);
         }
       },
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -382,7 +383,8 @@ class HitCard extends StatelessWidget {
 class BookSearchScreen extends StatefulWidget {
   final BookInfo book;
   final void Function(int pg)? onOpen;
-  const BookSearchScreen(this.book, {super.key, this.onOpen});
+  final void Function(String q, List<int> pages)? onFind;
+  const BookSearchScreen(this.book, {super.key, this.onOpen, this.onFind});
   @override
   State<BookSearchScreen> createState() => _BookSearchScreenState();
 }
@@ -463,7 +465,16 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
                       : ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 30), children: [
                           Text('النتائج: ${Ar.num(_hits.length)}', style: TextStyle(color: C.muted(context), fontSize: 13.5)),
                           const SizedBox(height: 8),
-                          for (final h in _hits) HitCard(h, query: _q, onOpen: widget.onOpen),
+                          for (final h in _hits)
+                            HitCard(h,
+                                query: _q,
+                                pages: [for (final x in _hits) x.pg],
+                                onOpen: widget.onOpen == null
+                                    ? null
+                                    : (pg) {
+                                        widget.onFind?.call(_q, [for (final x in _hits) x.pg]);
+                                        widget.onOpen!(pg);
+                                      }),
                         ]),
         ),
       ]),

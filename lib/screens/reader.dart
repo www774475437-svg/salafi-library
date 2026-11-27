@@ -21,8 +21,9 @@ import 'quote_image.dart';
 import 'report.dart';
 import 'search.dart';
 
-void openReader(BuildContext context, BookInfo b, int pg) =>
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ReaderScreen(b, pg)));
+/// With [find] and [hits] (the pages holding it), the reader colours the words and steps between their places.
+void openReader(BuildContext context, BookInfo b, int pg, {String find = '', List<int> hits = const []}) =>
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ReaderScreen(b, pg, find: find, hits: hits)));
 
 /// A book that is not in the list (rare: a search result from another edition).
 BookInfo bookOrStub(int id, String name, int authorId) {
@@ -83,7 +84,9 @@ Future<String?> pickTopic(BuildContext context, {String current = ''}) {
 class ReaderScreen extends StatefulWidget {
   final BookInfo book;
   final int startPg;
-  const ReaderScreen(this.book, this.startPg, {super.key});
+  final String find;
+  final List<int> hits;
+  const ReaderScreen(this.book, this.startPg, {super.key, this.find = '', this.hits = const []});
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
@@ -93,6 +96,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final DateTime _opened = DateTime.now();
   Timer? _tick;
   Timer? _sleep;
+  String find = ''; // the searched words, coloured in the pages
+  List<int> findPages = const []; // the pages that hold them
   PageController _pc = PageController();
   final _flowCtl = ItemScrollController();
   final _flowPos = ItemPositionsListener.create();
@@ -155,6 +160,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       }
     });
     pg = widget.startPg < 1 ? 1 : widget.startPg;
+    find = widget.find;
+    findPages = widget.hits.toSet().toList()..sort();
     _pc = PageController(initialPage: pg - 1);
     _modeShown = Store.i.readMode;
     _flowPos.itemPositions.addListener(_flowMoved);
@@ -240,6 +247,34 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  /// The bar that steps between the places of the searched words.
+  Widget _findBar(Color ink) {
+    final at = findPages.indexOf(pg);
+    final next = findPages.where((p) => p > pg);
+    final prev = findPages.where((p) => p < pg);
+    return Container(
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 0, 4, 0),
+      decoration: BoxDecoration(color: const Color(0x33FFC107), border: Border(bottom: BorderSide(color: ink.withValues(alpha: 0.12)))),
+      child: Row(children: [
+        Expanded(
+          child: Text(
+            findPages.isEmpty
+                ? '«$find»'
+                : at >= 0
+                    ? '«$find» · الموضع ${Ar.num(at + 1)} من ${Ar.num(findPages.length)}'
+                    : '«$find» · ${Ar.num(findPages.length)} موضعًا',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: ink),
+          ),
+        ),
+        IconButton(tooltip: 'الموضع السابق', icon: const Icon(Icons.keyboard_arrow_up_rounded), color: ink, onPressed: prev.isEmpty ? null : () => goTo(prev.last)),
+        IconButton(tooltip: 'الموضع التالي', icon: const Icon(Icons.keyboard_arrow_down_rounded), color: ink, onPressed: next.isEmpty ? null : () => goTo(next.first)),
+        IconButton(tooltip: 'أخفِ', icon: const Icon(Icons.close_rounded, size: 20), color: ink, onPressed: () => setState(() => find = '')),
+      ]),
+    );
+  }
+
   String label(int p) => index?.label(p) ?? Ar.num(p);
   String source(int p) => index?.source(p) ?? Ar.num(p);
 
@@ -300,6 +335,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ],
           ),
           body: Column(children: [
+            if (find.isNotEmpty) _findBar(ink),
             Expanded(
               child: Store.i.readMode == 1
                   ? ScrollablePositionedList.builder(
@@ -565,7 +601,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
       case 'pdf':
         if (index != null) openPdf(context, b, index!, pg);
       case 'search':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => BookSearchScreen(b, onOpen: goTo)));
+        Navigator.push(context, MaterialPageRoute(builder: (_) => BookSearchScreen(b, onOpen: goTo, onFind: (q, pages) => setState(() {
+              find = q;
+              findPages = pages.toSet().toList()..sort();
+            }))));
       case 'goto':
         _askPage();
       case 'pagenote':
@@ -758,6 +797,10 @@ class _Page extends StatelessWidget {
       final r = locate(pt.body, h.text);
       if (r != null) out.add((r.$1, r.$2, h.color));
     }
+    if (state.find.isNotEmpty) {
+      final r = locate(pt.body, state.find);
+      if (r != null) out.add((r.$1, r.$2, -1)); // -1: the searched words
+    }
     return out;
   }
 
@@ -786,7 +829,7 @@ class _Page extends StatelessWidget {
         style: base.copyWith(
           fontWeight: inTitle ? FontWeight.w700 : null,
           color: inTitle ? C.accent(context) : null,
-          backgroundColor: color == null ? null : hlColor(color),
+          backgroundColor: color == null ? null : color < 0 ? const Color(0x99FFC107) : hlColor(color),
         ),
       ));
     }

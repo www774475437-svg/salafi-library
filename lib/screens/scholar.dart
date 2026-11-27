@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../bios.dart';
+import '../fawaid.dart';
 import '../catalog.dart';
 import '../store.dart';
 import '../text.dart';
@@ -70,6 +71,20 @@ class _ScholarScreenState extends State<ScholarScreen> {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
               child: SoftCard(
                 child: Text(scholarBio[s.key]!, style: TextStyle(fontSize: 15, height: 1.8, color: C.ink(context))),
+              ),
+            ),
+          if (Fawaid.all.any((f) => f.scholar.key == s.key))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: SoftCard(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('من فوائده', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: C.gold(context))),
+                  for (final f in Fawaid.all.where((f) => f.scholar.key == s.key).take(3)) ...[
+                    const SizedBox(height: 10),
+                    Text('«${f.text}»', maxLines: 5, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: bookFont, fontSize: 16.5, height: 1.8, color: C.ink(context))),
+                    Text(f.source, style: TextStyle(fontSize: 12.5, color: C.muted(context))),
+                  ],
+                ]),
               ),
             ),
           Padding(
