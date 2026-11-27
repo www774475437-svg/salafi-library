@@ -287,6 +287,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'search', child: ListTile(leading: Icon(Icons.search_rounded), title: Text('ابحث في الكتاب'))),
                   const PopupMenuItem(value: 'goto', child: ListTile(leading: Icon(Icons.numbers_rounded), title: Text('انتقل إلى صفحة'))),
+                  const PopupMenuItem(value: 'pagenote', child: ListTile(leading: Icon(Icons.sticky_note_2_outlined), title: Text('ملاحظة على الصفحة'))),
                   if (index != null && index!.pdfs.isNotEmpty)
                     const PopupMenuItem(value: 'pdf', child: ListTile(leading: Icon(Icons.picture_as_pdf_rounded), title: Text('النسخة المصوّرة PDF'))),
                   const PopupMenuItem(value: 'look', child: ListTile(leading: Icon(Icons.text_fields_rounded), title: Text('الخط والعرض'))),
@@ -492,6 +493,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  /// A note on the page as a whole, not on a chosen text.
+  Future<void> _addPageNote() async {
+    final ctl = TextEditingController();
+    final p = pg;
+    final note = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('ملاحظة على ${label(p)}'),
+        content: TextField(controller: ctl, autofocus: true, maxLines: 6, minLines: 3, decoration: const InputDecoration(hintText: 'ملخّص الصفحة أو ما تريد تذكّره منها…', border: OutlineInputBorder())),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(c, ctl.text), child: const Text('احفظ')),
+        ],
+      ),
+    );
+    if (note == null || note.trim().isEmpty || !mounted) return;
+    Store.i.addNote(b.id, p, 'الصفحة كلها', note, label(p));
+    toast(context, 'حُفظت ملاحظة الصفحة في «مكتبتي»');
+  }
+
   Future<void> _addNote(String text, String lab) async {
     final ctl = TextEditingController();
     final p = selPg;
@@ -547,6 +568,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         Navigator.push(context, MaterialPageRoute(builder: (_) => BookSearchScreen(b, onOpen: goTo)));
       case 'goto':
         _askPage();
+      case 'pagenote':
+        _addPageNote();
       case 'look':
         showReadingLook(context);
       case 'download':

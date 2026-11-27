@@ -97,6 +97,9 @@ class Store extends ChangeNotifier {
   /// The daily reading time in minutes after midnight; -1 when not set.
   int dailyMinutes = -1;
   final List<int> recent = [];
+  /// What was searched for, newest first; the pinned ones stay.
+  final List<String> searches = [];
+  final Set<String> pinnedSearches = {};
   final Set<int> downloaded = {};
   final Set<String> favFawaid = {}; // sayings the reader kept
   final List<int> readLater = []; // books to read later
@@ -148,6 +151,8 @@ class Store extends ChangeNotifier {
         pagesRead[int.parse(k)] = {for (final e in (v as List)) (e as num).toInt()};
       });
       recent.addAll((jsonDecode(p.getString('recent') ?? '[]') as List).map((e) => (e as num).toInt()));
+      searches.addAll(p.getStringList('searches') ?? const []);
+      pinnedSearches.addAll(p.getStringList('pinnedSearches') ?? const []);
       (jsonDecode(p.getString('pdfOffset') ?? '{}') as Map<String, dynamic>).forEach((k, v) => pdfOffset[k] = (v as num).toInt());
       downloaded.addAll((jsonDecode(p.getString('downloaded') ?? '[]') as List).map((e) => (e as num).toInt()));
       favFawaid.addAll((jsonDecode(p.getString('favFawaid') ?? '[]') as List).map((e) => '$e'));
@@ -204,6 +209,8 @@ class Store extends ChangeNotifier {
     p.setString('dayPages', jsonEncode(dayPages));
     p.setString('pagesRead', jsonEncode(pagesRead.map((k, v) => MapEntry('$k', v.toList()))));
     p.setString('recent', jsonEncode(recent));
+    p.setStringList('searches', searches);
+    p.setStringList('pinnedSearches', pinnedSearches.toList());
     p.setString('downloaded', jsonEncode(downloaded.toList()));
     p.setString('favFawaid', jsonEncode(favFawaid.toList()));
     p.setString('bookmarks', jsonEncode(bookmarks.map((e) => e.toJson()).toList()));
@@ -300,6 +307,26 @@ class Store extends ChangeNotifier {
   void toggleShelf(String name, int book) {
     final l = shelves.putIfAbsent(name, () => []);
     if (!l.remove(book)) l.add(book);
+    changed();
+  }
+
+  void addSearch(String q) {
+    searches.remove(q);
+    searches.insert(0, q);
+    // unpinned ones beyond the latest 30 are dropped
+    var free = 0;
+    searches.removeWhere((s) => !pinnedSearches.contains(s) && ++free > 30);
+    changed();
+  }
+
+  void removeSearch(String q) {
+    searches.remove(q);
+    pinnedSearches.remove(q);
+    changed();
+  }
+
+  void togglePinSearch(String q) {
+    if (!pinnedSearches.remove(q)) pinnedSearches.add(q);
     changed();
   }
 

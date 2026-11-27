@@ -27,6 +27,9 @@ class _SearchScreenState extends State<SearchScreen> {
   final List<SearchHit> _hits = [];
   int _searchId = 0;
   String _progress = '';
+  bool _exact = false; // only results that hold the phrase as written
+  String _without = ''; // results holding this word are left out
+  final Set<int> _open = {}; // books whose results are all shown
 
   List<Scholar> get _chosen => _scholar < 0 ? Catalog.scholars.where((s) => s.authorId > 0).toList() : [Catalog.scholars[_scholar]];
 
@@ -35,11 +38,14 @@ class _SearchScreenState extends State<SearchScreen> {
     if (q.length < 2) return;
     FocusScope.of(context).unfocus();
     final id = ++_searchId;
+    if (!more) Store.i.addSearch(q);
+    final byBook = kIsWeb || (_scholar >= 0 && Catalog.scholars[_scholar].collection);
     setState(() {
       _busy = true;
       _error = null;
       _q = q;
       if (!more) {
+        _open.clear();
         _hits.clear();
         _total = 0;
         _page = 1;
@@ -64,12 +70,15 @@ class _SearchScreenState extends State<SearchScreen> {
             _total = _hits.length;
           });
         }
-      } else if (kIsWeb) {
-        // the website cannot ask «تراث»; it searches the books kept in the library, book by book
+      } else if (byBook) {
+        // the website cannot ask «تراث», and a collection has no single author there:
+        // both search the books kept in the library, book by book
         final books = [for (final s in _chosen) ...s.books.where((b) => Turath.hosted.contains(b.id))];
         if (more) return;
         if (books.isEmpty) {
-          _error = 'كتب ${_scholar < 0 ? 'هؤلاء العلماء' : Catalog.scholars[_scholar].short} لم تُضف إلى الموقع بعد. ويمكنك البحث فيها كلها في تطبيق أندرويد.';
+          _error = kIsWeb
+              ? 'كتب ${_scholar < 0 ? 'هؤلاء العلماء' : Catalog.scholars[_scholar].short} لم تُضف إلى الموقع بعد. ويمكنك البحث فيها كلها في تطبيق أندرويد.'
+              : 'كتب هذا القسم لم تُضف إلى المخزن بعد.';
         }
         for (var i = 0; i < books.length && _hits.length < 400; i++) {
           final bk = books[i];
@@ -141,7 +150,26 @@ class _SearchScreenState extends State<SearchScreen> {
           child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), children: [
             _chip('كل العلماء', _scholar < 0, () => _pick(-1)),
             for (var i = 0; i < Catalog.scholars.length; i++)
-              if (!Catalog.scholars[i].collection || kIsWeb) _chip(Catalog.scholars[i].short, _scholar == i, () => _pick(i)),
+              _chip(Catalog.scholars[i].short, _scholar == i, () => _pick(i)),
+          ]),
+        ),
+        SizedBox(
+          height: 44,
+          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), children: [
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: FilterChip(label: const Text('العبارة كما هي'), selected: _exact, onSelected: (v) => setState(() => _exact = v)),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: InputChip(
+                label: Text(_without.isEmpty ? 'بدون كلمة…' : 'بدون «$_without»'),
+                selected: _without.isNotEmpty,
+                showCheckmark: false,
+                onPressed: _askWithout,
+                onDeleted: _without.isEmpty ? null : () => setState(() => _without = ''),
+              ),
+            ),
           ]),
         ),
         if (BookFiles.supported)
@@ -165,6 +193,62 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  Future<void> _askWithout() async {
+    final ctl = TextEditingController(text: _without);
+    final w = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('استثنِ كلمة من النتائج'),
+        content: TextField(controller: ctl, autofocus: true, decoration: const InputDecoration(hintText: 'الكلمة التي لا تريدها', border: OutlineInputBorder())),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(c, ctl.text.trim()), child: const Text('تم')),
+        ],
+      ),
+    );
+    if (w != null && mounted) setState(() => _without = w);
+  }
+
+  /// The results after the reader's conditions. They are judged on the lines shown,
+  /// so a word further down the page is not seen.
+  List<SearchHit> get _shown {
+    if (!_exact && _without.isEmpty) return _hits;
+    return _hits.where((h) {
+      final t = h.snip.contains('<em>') ? emSnippet(h.snip).$1 : h.snip;
+      if (_exact && locate(t, _q) == null) return false;
+      if (_without.isNotEmpty && locate(t, _without) != null) return false;
+      return true;
+    }).toList();
+  }
+
+  Widget _history() {
+    final s = Store.i;
+    final list = [...s.searches.where(s.pinnedSearches.contains), ...s.searches.where((q) => !s.pinnedSearches.contains(q))];
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 110), children: [
+      Text('سجل البحث', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: C.ink(context))),
+      const SizedBox(height: 6),
+      for (final q in list)
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(s.pinnedSearches.contains(q) ? Icons.push_pin_rounded : Icons.history_rounded, color: C.muted(context)),
+          title: Text(q, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16)),
+          onTap: () {
+            _ctl.text = q;
+            _run();
+          },
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+              tooltip: s.pinnedSearches.contains(q) ? 'أزل التثبيت' : 'ثبّت',
+              icon: Icon(s.pinnedSearches.contains(q) ? Icons.push_pin_rounded : Icons.push_pin_outlined, size: 20),
+              onPressed: () => setState(() => s.togglePinSearch(q)),
+            ),
+            IconButton(tooltip: 'احذف', icon: const Icon(Icons.close_rounded, size: 20), onPressed: () => setState(() => s.removeSearch(q))),
+          ]),
+        ),
+    ]);
+  }
+
   void _pick(int i) {
     setState(() => _scholar = i);
     if (_ctl.text.trim().length >= 2) _run();
@@ -176,6 +260,7 @@ class _SearchScreenState extends State<SearchScreen> {
       );
 
   Widget _results() {
+    if (_q.isEmpty && Store.i.searches.isNotEmpty) return _history();
     if (_q.isEmpty) {
       return EmptyNote(Icons.manage_search_rounded,
           _offline ? 'اكتب كلمة للبحث في كتبك المحمّلة، ويعمل بلا إنترنت.' : 'اكتب كلمة أو جملة للبحث في كتب العلماء كلها، أو اختر عالمًا.');
@@ -185,31 +270,57 @@ class _SearchScreenState extends State<SearchScreen> {
       return EmptyNote(Icons.search_off_rounded,
           _offline && Store.i.downloaded.isEmpty ? 'لم تحمّل أي كتاب بعد. حمّل الكتب من صفحاتها لتبحث فيها بلا إنترنت.' : 'لا نتائج لـ«$_q».');
     }
-    final canMore = !_offline && _hits.length < _total;
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 110),
-      itemCount: _hits.length + 2,
-      itemBuilder: (context, i) {
-        if (i == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-                _busy && _progress.isNotEmpty
-                    ? 'النتائج: ${Ar.num(_hits.length)} · $_progress'
-                    : _busy && _hits.isEmpty
-                        ? 'يبحث…'
-                        : 'النتائج: ${Ar.num(_total)}',
-                style: TextStyle(color: C.muted(context), fontSize: 13.5)),
-          );
-        }
-        if (i == _hits.length + 1) {
-          if (_busy) return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()));
-          if (canMore) return TextButton(onPressed: () => _run(more: true), child: const Text('المزيد من النتائج'));
-          return const SizedBox();
-        }
-        return HitCard(_hits[i - 1], query: _q);
-      },
-    );
+    final canMore = !_offline && !kIsWeb && _hits.length < _total;
+    final shown = _shown;
+    // each book's results together, in the order the books first appeared
+    final groups = <int, List<SearchHit>>{};
+    for (final h in shown) {
+      groups.putIfAbsent(h.book, () => []).add(h);
+    }
+    final filtered = _exact || _without.isNotEmpty;
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 110), children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+            _busy && _progress.isNotEmpty
+                ? 'النتائج: ${Ar.num(_hits.length)} · $_progress'
+                : _busy && _hits.isEmpty
+                    ? 'يبحث…'
+                    : filtered
+                        ? 'يوافق شروطك ${Ar.num(shown.length)} من ${Ar.num(_hits.length)} نتيجة معروضة، في ${Ar.books(groups.length)}'
+                        : 'النتائج: ${Ar.num(_total)} · المعروض منها في ${Ar.books(groups.length)}',
+            style: TextStyle(color: C.muted(context), fontSize: 13.5)),
+      ),
+      if (filtered && shown.isEmpty && !_busy)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 30),
+          child: Text('لا نتيجة توافق شروطك فيما عُرض. جرّب «المزيد من النتائج» أو خفّف الشروط.', textAlign: TextAlign.center, style: TextStyle(color: C.muted(context), fontSize: 15, height: 1.7)),
+        ),
+      for (final e in groups.entries) ...[
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 6),
+          child: Row(children: [
+            Expanded(
+              child: Text(bookOrStub(e.key, e.value.first.bookName, e.value.first.authorId).shortName,
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: C.ink(context))),
+            ),
+            Text(Ar.num(e.value.length), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: C.accent(context))),
+          ]),
+        ),
+        for (final h in (_open.contains(e.key) ? e.value : e.value.take(3))) HitCard(h, query: _q),
+        if (e.value.length > 3)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _open.contains(e.key) ? _open.remove(e.key) : _open.add(e.key)),
+              icon: Icon(_open.contains(e.key) ? Icons.expand_less_rounded : Icons.expand_more_rounded),
+              label: Text(_open.contains(e.key) ? 'أقل' : 'المزيد (${Ar.num(e.value.length - 3)})'),
+            ),
+          ),
+      ],
+      if (_busy) const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
+      if (!_busy && canMore) TextButton(onPressed: () => _run(more: true), child: const Text('المزيد من النتائج')),
+    ]);
   }
 }
 
