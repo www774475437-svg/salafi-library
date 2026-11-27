@@ -92,6 +92,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   static bool _warnedSmall = false;
   final DateTime _opened = DateTime.now();
   Timer? _tick;
+  Timer? _sleep;
   PageController _pc = PageController();
   final _flowCtl = ItemScrollController();
   final _flowPos = ItemPositionsListener.create();
@@ -160,6 +161,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     Store.i.readAt(b.id, pg);
     _loadIndex();
     Screen.keepOn(Store.i.keepOn);
+    final sleepIn = Store.i.sleepMinutes;
+    if (sleepIn > 0) {
+      // the screen is allowed to sleep after the chosen time; the phone's own settings decide how
+      _sleep = Timer(Duration(minutes: sleepIn), () {
+        if (!mounted) return;
+        Screen.keepOn(false);
+        toast(context, 'انتهى مؤقت القراءة، ويمكن أن تنطفئ الشاشة الآن');
+      });
+    }
     if (Store.i.volKeys) Screen.volumeKeys(_step);
   }
 
@@ -197,6 +207,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void dispose() {
     _tick?.cancel();
+    _sleep?.cancel();
     Screen.keepOn(false);
     Screen.volumeKeys(null);
     _flowPos.itemPositions.removeListener(_flowMoved);

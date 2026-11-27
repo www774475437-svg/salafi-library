@@ -78,6 +78,7 @@ class Store extends ChangeNotifier {
   bool hideFoot = false; // the text alone, without the footnotes
   bool keepOn = true; // the screen stays lit while reading
   bool volKeys = false; // the volume buttons turn the pages
+  int sleepMinutes = 0; // while reading, the screen may sleep after this many minutes (0 = off)
   int firstRun = 0; // when the app was first opened (for the later «rate the app» reminder)
   final Map<String, int> pdfOffset = {}; // "book:vol" → scanned page minus printed page
 
@@ -127,6 +128,7 @@ class Store extends ChangeNotifier {
     hideFoot = p.getBool('hideFoot') ?? false;
     keepOn = p.getBool('keepOn') ?? true;
     volKeys = p.getBool('volKeys') ?? false;
+    sleepMinutes = p.getInt('sleepMinutes') ?? 0;
     firstRun = p.getInt('firstRun') ?? 0;
     if (firstRun == 0) {
       firstRun = DateTime.now().millisecondsSinceEpoch;
@@ -189,6 +191,7 @@ class Store extends ChangeNotifier {
     p.setBool('hideFoot', hideFoot);
     p.setBool('keepOn', keepOn);
     p.setBool('volKeys', volKeys);
+    p.setInt('sleepMinutes', sleepMinutes);
     p.setString('readLater', jsonEncode(readLater));
     p.setInt('lastReadAt', lastReadAt);
     p.setString('review', jsonEncode(review));
@@ -216,7 +219,8 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode, bool? hideFoot, bool? keepOn, bool? volKeys}) {
+  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode, bool? hideFoot, bool? keepOn, bool? volKeys, int? sleepMinutes}) {
+    if (sleepMinutes != null) this.sleepMinutes = sleepMinutes;
     if (hideFoot != null) this.hideFoot = hideFoot;
     if (keepOn != null) this.keepOn = keepOn;
     if (volKeys != null) this.volKeys = volKeys;

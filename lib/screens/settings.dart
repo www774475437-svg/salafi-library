@@ -71,6 +71,13 @@ class SettingsScreen extends StatelessWidget {
                   onChanged: (v) => st.setSettings(keepOn: v),
                 ),
               if (!kIsWeb)
+                ListTile(
+                  leading: const _Ico(Icons.bedtime_outlined),
+                  title: const Text('مؤقت إطفاء الشاشة أثناء القراءة'),
+                  subtitle: Text(st.sleepMinutes == 0 ? 'معطّل' : 'بعد ${Ar.num(st.sleepMinutes)} دقيقة من بدء القراءة'),
+                  onTap: () => _pickSleep(context),
+                ),
+              if (!kIsWeb)
                 SwitchListTile(
                   secondary: const _Ico(Icons.volume_up_outlined),
                   title: const Text('تقليب الصفحات بزرّي الصوت'),
@@ -144,6 +151,23 @@ class SettingsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Future<void> _pickSleep(BuildContext context) async {
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: const Text('مؤقت إطفاء الشاشة'),
+        children: [
+          for (final m in const [0, 15, 30, 60])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, m),
+              child: Text(m == 0 ? 'معطّل' : '${Ar.num(m)} دقيقة'),
+            ),
+        ],
+      ),
+    );
+    if (picked != null) Store.i.setSettings(sleepMinutes: picked);
   }
 
   /// Saves everything personal as a JSON file, and opens the share sheet so it can be saved to Downloads.

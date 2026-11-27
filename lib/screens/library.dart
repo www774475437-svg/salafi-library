@@ -25,6 +25,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String topic = ''; // quotes filter
 
   String quoteQuery = '';
+  String noteQuery = '';
 
   /// The quotes in the order chosen in «الترتيب», with a heading where the book or author changes.
   List<Widget> _quoteRows(List<Kept> list) {
@@ -123,8 +124,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final s = Store.i;
     switch (tab) {
       case 0:
-        final list = s.highlights.where((h) => color < 0 || h.color == color).toList();
+        final list = s.highlights.where((h) => (color < 0 || h.color == color) && (noteQuery.isEmpty || h.text.contains(noteQuery) || h.note.contains(noteQuery))).toList();
         return ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [
+          TextField(
+            decoration: const InputDecoration(hintText: 'ابحث في مظلّلاتك وملاحظاتها…', prefixIcon: Icon(Icons.search_rounded), isDense: true),
+            onChanged: (v) => setState(() => noteQuery = v.trim()),
+          ),
+          const SizedBox(height: 8),
           Wrap(spacing: 8, children: [
             ChoiceChip(label: const Text('الكل'), selected: color < 0, showCheckmark: false, onSelected: (_) => setState(() => color = -1)),
             for (var c = 0; c < s.colors.length; c++)
@@ -208,7 +214,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       case 5:
         return s.notes.isEmpty
             ? const EmptyNote(Icons.sticky_note_2_outlined, 'حدّد نصًّا وأنت تقرأ ثم اضغط «ملاحظة» واكتب ما تريد، فتُحفظ هنا مع موضعها في الكتاب.')
-            : ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [for (final n in s.notes) _KeptCard(n, kind: 3)]);
+            : ListView(padding: const EdgeInsets.fromLTRB(16, 6, 16, 110), children: [
+                TextField(
+                  decoration: const InputDecoration(hintText: 'ابحث في ملاحظاتك…', prefixIcon: Icon(Icons.search_rounded), isDense: true),
+                  onChanged: (v) => setState(() => noteQuery = v.trim()),
+                ),
+                const SizedBox(height: 8),
+                for (final n in s.notes.where((n) => noteQuery.isEmpty || n.text.contains(noteQuery) || n.note.contains(noteQuery))) _KeptCard(n, kind: 3),
+              ]);
       default:
         final books = s.recent.map((id) => Catalog.byId[id]).whereType<BookInfo>().toList();
         return books.isEmpty
