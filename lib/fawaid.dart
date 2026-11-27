@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'catalog.dart';
+import 'screen.dart';
 
 /// A chosen saying of a scholar, with the source as its collector wrote it.
 class Faida {
@@ -59,6 +60,22 @@ class Fawaid {
         pending.add(Map<String, dynamic>.from(x as Map));
       }
     } catch (_) {}
+  }
+
+  /// Leaves the sayings of the coming two months for the widget of the phone's home screen.
+  static void feedWidget() {
+    if (all.isEmpty) return;
+    final d = DateTime.now();
+    final day = DateTime.utc(d.year, d.month, d.day).millisecondsSinceEpoch ~/ 86400000;
+    final items = [
+      for (var i = 0; i < 60 && i < all.length; i++)
+        () {
+          final f = all[(day + i) % all.length];
+          final t = f.text.length > 320 ? '${f.text.substring(0, 320)}…' : f.text;
+          return ['«$t»', '${f.scholar.short} · ${f.source}'];
+        }(),
+    ];
+    Screen.widget(jsonEncode(items), day);
   }
 
   /// The same one for everybody on a given day.

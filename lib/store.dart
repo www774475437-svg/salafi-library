@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'catalog.dart';
+import 'screen.dart';
 
 /// Something the reader kept: a bookmark (فاصلة), a highlight (تظليل) or a quote (اقتباس).
 class Kept {
@@ -78,6 +79,7 @@ class Store extends ChangeNotifier {
   bool hideFoot = false; // the text alone, without the footnotes
   bool keepOn = true; // the screen stays lit while reading
   bool volKeys = false; // the volume buttons turn the pages
+  bool reviewNotify = false; // a notification when saved items are due for review
   int sleepMinutes = 0; // while reading, the screen may sleep after this many minutes (0 = off)
   int firstRun = 0; // when the app was first opened (for the later «rate the app» reminder)
   final Map<String, int> pdfOffset = {}; // "book:vol" → scanned page minus printed page
@@ -141,6 +143,7 @@ class Store extends ChangeNotifier {
     keepOn = p.getBool('keepOn') ?? true;
     volKeys = p.getBool('volKeys') ?? false;
     sleepMinutes = p.getInt('sleepMinutes') ?? 0;
+    reviewNotify = p.getBool('reviewNotify') ?? false;
     firstRun = p.getInt('firstRun') ?? 0;
     if (firstRun == 0) {
       firstRun = DateTime.now().millisecondsSinceEpoch;
@@ -211,6 +214,7 @@ class Store extends ChangeNotifier {
     p.setBool('keepOn', keepOn);
     p.setBool('volKeys', volKeys);
     p.setInt('sleepMinutes', sleepMinutes);
+    p.setBool('reviewNotify', reviewNotify);
     p.setString('readLater', jsonEncode(readLater));
     p.setInt('lastReadAt', lastReadAt);
     p.setString('review', jsonEncode(review));
@@ -245,7 +249,12 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode, bool? hideFoot, bool? keepOn, bool? volKeys, int? sleepMinutes}) {
+  void setSettings({int? themeMode, double? fontSize, String? readFont, int? paper, bool? tashkeel, int? readMode, bool? hideFoot, bool? keepOn, bool? volKeys, int? sleepMinutes, bool? reviewNotify}) {
+    if (reviewNotify != null) {
+      this.reviewNotify = reviewNotify;
+      if (reviewNotify) Screen.askNotify();
+      scheduleReviewReminder();
+    }
     if (sleepMinutes != null) this.sleepMinutes = sleepMinutes;
     if (hideFoot != null) this.hideFoot = hideFoot;
     if (keepOn != null) this.keepOn = keepOn;
@@ -528,8 +537,25 @@ class Store extends ChangeNotifier {
   double readShare(int book, int total) => total <= 0 ? 0 : ((pagesRead[book]?.length ?? 0) / total).clamp(0.0, 1.0);
 
   /// Puts a kept item to review (or takes it out). New items are due tomorrow.
+  /// Sets the phone's reminder for the next time something is due for review (or removes it).
+  void scheduleReviewReminder() {
+    if (!reviewNotify || review.isEmpty) {
+      Screen.remind(0, '', '');
+      return;
+    }
+    final t = now();
+    var next = review.values.map((r) => r[1]).reduce((a, b) => a < b ? a : b);
+    if (next <= t) {
+      // something is due already and the reader is here now: remind tomorrow morning if it is still waiting
+      final d = DateTime.now();
+      next = DateTime(d.year, d.month, d.day + 1, 9).millisecondsSinceEpoch;
+    }
+    Screen.remind(next, 'احفظ وراجِع', 'حان موعد مراجعة بعض ما حفظتَه من الفوائد');
+  }
+
   void toggleReview(Kept k) {
     if (review.remove(k.id) == null) review[k.id] = [0, now() + reviewDays[0] * 86400000];
+    scheduleReviewReminder();
     changed();
   }
 
@@ -552,6 +578,7 @@ class Store extends ChangeNotifier {
     if (r == null) return;
     final stage = remembered ? (r[0] + 1).clamp(0, reviewDays.length - 1) : 0;
     review[id] = [stage, now() + reviewDays[stage] * 86400000];
+    scheduleReviewReminder();
     changed();
   }
 

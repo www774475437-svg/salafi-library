@@ -23,6 +23,31 @@ class Screen {
     } catch (_) {}
   }
 
+  /// Asks the phone to allow notifications (Android 13 and later ask the reader).
+  static Future<void> askNotify() async {
+    if (kIsWeb) return;
+    try {
+      await _ch.invokeMethod('askNotify');
+    } catch (_) {}
+  }
+
+  /// One reminder at the time [at] (ms); zero removes it. The phone may show it a little late.
+  static Future<void> remind(int at, String title, String text) async {
+    if (kIsWeb) return;
+    try {
+      await _ch.invokeMethod('remind', {'at': at, 'title': title, 'text': text});
+    } catch (_) {}
+  }
+
+  /// Leaves the coming days' sayings for the home-screen widget: [items] is a JSON list of [text, source],
+  /// the first of them for the day numbered [start].
+  static Future<void> widget(String items, int start) async {
+    if (kIsWeb) return;
+    try {
+      await _ch.invokeMethod('widget', {'items': items, 'start': start});
+    } catch (_) {}
+  }
+
   /// The volume buttons turn the pages: down is the next page, up the one before.
   static Future<void> volumeKeys(void Function(int step)? onPress) async {
     if (kIsWeb) return;

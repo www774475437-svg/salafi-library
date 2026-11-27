@@ -25,6 +25,8 @@ Future<void> main() async {
     Turath.loadHosted().timeout(const Duration(seconds: 4), onTimeout: () {}),
   ]);
   await Fawaid.load();
+  Fawaid.feedWidget();
+  Store.i.scheduleReviewReminder();
   RemoteConfig.load(); // not awaited: the app opens with what it last knew
   // on the website our own bar handles selected text, not the browser's menu
   if (kIsWeb) await BrowserContextMenu.disableContextMenu();

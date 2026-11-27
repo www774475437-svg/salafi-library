@@ -77,6 +77,14 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ToolsScreen())),
               ),
               if (!kIsWeb)
+                SwitchListTile(
+                  secondary: const _Ico(Icons.notifications_active_outlined),
+                  title: const Text('تنبيه بموعد المراجعة'),
+                  subtitle: const Text('إشعار حين يحين موعد مراجعة ما حفظتَه في «احفظ وراجِع»'),
+                  value: st.reviewNotify,
+                  onChanged: (v) => st.setSettings(reviewNotify: v),
+                ),
+              if (!kIsWeb)
                 ListTile(
                   leading: const _Ico(Icons.bedtime_outlined),
                   title: const Text('مؤقت إطفاء الشاشة أثناء القراءة'),
