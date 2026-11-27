@@ -5,6 +5,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../catalog.dart';
+import '../masail.dart';
+import 'study.dart' show NaqlScreen;
 import '../screen.dart';
 import '../files/files.dart';
 import 'dart:async';
@@ -322,6 +324,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'search', child: ListTile(leading: Icon(Icons.search_rounded), title: Text('ابحث في الكتاب'))),
                   const PopupMenuItem(value: 'goto', child: ListTile(leading: Icon(Icons.numbers_rounded), title: Text('انتقل إلى صفحة'))),
+                  const PopupMenuItem(value: 'masail', child: ListTile(leading: Icon(Icons.hub_outlined), title: Text('المسألة عند العلماء'))),
                   const PopupMenuItem(value: 'tabs', child: ListTile(leading: Icon(Icons.tab_rounded), title: Text('الكتب المفتوحة'))),
                   const PopupMenuItem(value: 'pagenote', child: ListTile(leading: Icon(Icons.sticky_note_2_outlined), title: Text('ملاحظة على الصفحة'))),
                   if (index != null && index!.pdfs.isNotEmpty)
@@ -544,10 +547,81 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 () => showQuoteImage(context, text: text, scholar: b.scholar.collection ? '' : '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),
             item(ico(Icons.sticky_note_2_outlined), 'ملاحظة', () => _addNote(text, lab)),
             item(ico(Icons.translate_rounded), 'المعجم', () => openDict(context, text)),
+            item(ico(Icons.travel_explore_rounded), 'أصل النقل', () => Navigator.push(context, MaterialPageRoute(builder: (_) => NaqlScreen(text, b)))),
             ]),
             sep(),
             item(ico(Icons.close_rounded), 'إغلاق', clearSel),
           ]),
+        ),
+      ),
+    );
+  }
+
+  /// The same chapter in the books of the other scholars, by its exact title.
+  void _showMasail() {
+    final h = index?.headingAt(pg);
+    final n = h == null ? -1 : index!.headings.indexOf(h);
+    final found = n < 0 ? Future.value(const <(BookInfo, int)>[]) : Masail.related(b, n);
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => SafeArea(
+        child: FutureBuilder<List<(BookInfo, int)>>(
+          future: found,
+          builder: (c, snap) {
+            final list = snap.data;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * 0.75),
+              child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(20, 0, 20, 16), children: [
+                Text('المسألة عند العلماء', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: C.ink(c))),
+                if (h != null) ...[
+                  const SizedBox(height: 4),
+                  Text(h.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: bookFont, fontSize: 16, height: 1.6, color: C.accent(c))),
+                ],
+                const SizedBox(height: 8),
+                if (list == null)
+                  const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()))
+                else if (list.isEmpty) ...[
+                  Text(
+                    h == null ? 'هذه الصفحة ليست تحت باب معنون.' : 'لم أجد هذه المسألة بعنوانها في كتب أخرى. لا أعرض إلا ما طابق عنوان الباب كاملًا.',
+                    style: TextStyle(fontSize: 14.5, height: 1.8, color: C.muted(c)),
+                  ),
+                  if (h != null)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('ابحث عن عنوان الباب في المكتبة كلها'),
+                        onPressed: () {
+                          Navigator.pop(c);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => Scaffold(appBar: AppBar(title: const Text('بحث')), body: SearchScreen(initial: h.title.replaceAll(RegExp(r'^[\d٠-٩\s\-–.()]+'), ''))),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ] else ...[
+                  Text('أبواب بالعنوان نفسه في ${Ar.books(list.length)}:', style: TextStyle(fontSize: 13, color: C.muted(c))),
+                  for (final (x, p) in list)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: ScholarMark(x.scholar.short, size: 34),
+                      title: Text(x.shortName, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(x.scholar.short),
+                      trailing: const Icon(Icons.chevron_left_rounded),
+                      onTap: () {
+                        Navigator.pop(c);
+                        openReader(context, x, p);
+                      },
+                    ),
+                ],
+              ]),
+            );
+          },
         ),
       ),
     );
@@ -671,6 +745,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _addPageNote();
       case 'tabs':
         _showOpenBooks();
+      case 'masail':
+        _showMasail();
       case 'look':
         showReadingLook(context);
       case 'download':

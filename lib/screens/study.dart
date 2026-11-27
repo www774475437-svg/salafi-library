@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
+
 import '../catalog.dart';
+import '../masail.dart';
+import '../update.dart' show openLink;
+import 'search.dart' show HitCard;
 import '../store.dart';
 import '../text.dart';
 import '../turath.dart';
@@ -502,9 +508,118 @@ class _MemorizeScreenState extends State<MemorizeScreen> {
   }
 }
 
+/// Whether the book is one of fatwas or question-and-answer meetings.
+bool isFatawa(BookInfo b) => b.pages > 0 && (b.name.contains('فتاو') || b.name.contains('فتوى') || b.name.contains('لقاء') || b.name.contains('نور على الدرب') || b.catName.contains('فتاو'));
+
+/// «أصل النقل»: the chosen words, looked for as they are in the books of the scholars.
+class NaqlScreen extends StatefulWidget {
+  final String text;
+  final BookInfo from;
+  const NaqlScreen(this.text, this.from, {super.key});
+  @override
+  State<NaqlScreen> createState() => _NaqlScreenState();
+}
+
+class _NaqlScreenState extends State<NaqlScreen> {
+  late final String phrase;
+  bool busy = true;
+  String? note;
+  final List<SearchHit> hits = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // a long passage rarely matches letter for letter; its first words are enough to find it
+    final words = widget.text.replaceAll(RegExp(r'[«»"“”()\[\]﴿﴾:،.؛]'), ' ').trim().split(RegExp(r'\s+'));
+    phrase = words.take(9).join(' ');
+    _run();
+  }
+
+  Future<void> _run() async {
+    if (phrase.split(' ').length < 3) {
+      setState(() {
+        busy = false;
+        note = 'حدّد ثلاث كلمات فأكثر من النص المنقول، ليُعرف موضعه بلفظه.';
+      });
+      return;
+    }
+    if (kIsWeb) {
+      setState(() {
+        busy = false;
+        note = 'تتبّع النقل يعمل في تطبيق أندرويد، لأن الموقع لا يستطيع البحث في كتب العلماء كلها.';
+      });
+      return;
+    }
+    final mine = workOf(widget.from);
+    var failed = 0;
+    final people = Catalog.scholars.where((s) => s.authorId > 0).toList();
+    final results = await Future.wait(people.map((s) => Turath.search(phrase, s.authorId).catchError((_) {
+          failed++;
+          return (0, <SearchHit>[]);
+        })));
+    final seen = <String>{};
+    for (final r in results) {
+      for (final h in r.$2) {
+        final b = Catalog.byId[h.book];
+        if (b != null && workOf(b) == mine) continue; // the book being read is not its own source
+        final t = h.snip.contains('<em>') ? emSnippet(h.snip).$1 : h.snip;
+        if (locate(t, phrase) == null) continue; // only the words as they are
+        if (seen.add('${h.book}:${h.pg}')) hits.add(h);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      busy = false;
+      if (hits.isEmpty && failed == people.length) note = 'تعذّر البحث، تأكّد من الإنترنت.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('أصل النقل')),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 30), children: [
+        SoftCard(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('أبحث عن هذه الكلمات بلفظها:', style: TextStyle(fontSize: 13, color: C.muted(context))),
+            const SizedBox(height: 4),
+            Text('«$phrase»', style: TextStyle(fontFamily: bookFont, fontSize: 17, height: 1.8, color: C.ink(context))),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        if (busy)
+          const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
+        else if (note != null)
+          Text(note!, style: TextStyle(fontSize: 15, height: 1.8, color: C.muted(context)))
+        else if (hits.isEmpty) ...[
+          Text('لم أجد هذا النص بلفظه في كتب العلماء في المكتبة. قد يكون النقل بالمعنى، أو من كتاب ليس عندنا.', style: TextStyle(fontSize: 15, height: 1.8, color: C.muted(context))),
+          if (RemoteConfig.turathLink)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: const Text('انسخ العبارة وافتح «تراث» لتبحث فيه'),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: phrase));
+                  openLink('https://app.turath.io');
+                },
+              ),
+            ),
+        ] else ...[
+          Text('وُجد بلفظه في ${Ar.num(hits.length)} موضعًا:', style: TextStyle(fontSize: 13, color: C.muted(context))),
+          const SizedBox(height: 8),
+          for (final h in hits) HitCard(h, query: phrase),
+        ],
+      ]),
+    );
+  }
+}
+
 /// «الفهرس الموضوعي»: the chapters about one subject, gathered from the tables of contents of the books.
 class TopicIndexScreen extends StatefulWidget {
-  const TopicIndexScreen({super.key});
+  /// Only the books of fatwas, whose chapters are the questions.
+  final bool fatawa;
+  const TopicIndexScreen({super.key, this.fatawa = false});
   @override
   State<TopicIndexScreen> createState() => _TopicIndexScreenState();
 }
@@ -525,7 +640,7 @@ class _TopicIndexScreenState extends State<TopicIndexScreen> {
     final id = ++_run;
     final nq = norm(q);
     final books = Catalog.byId.values
-        .where((b) => b.pages > 0 && (_scholar < 0 || b.scholar == Catalog.scholars[_scholar]) && (Turath.hosted.contains(b.id) || Store.i.downloaded.contains(b.id)))
+        .where((b) => b.pages > 0 && (!widget.fatawa || isFatawa(b)) && (_scholar < 0 || b.scholar == Catalog.scholars[_scholar]) && (Turath.hosted.contains(b.id) || Store.i.downloaded.contains(b.id)))
         .toList();
     setState(() {
       _q = q;
@@ -561,7 +676,7 @@ class _TopicIndexScreenState extends State<TopicIndexScreen> {
   Widget build(BuildContext context) {
     final total = _found.values.fold(0, (a, l) => a + l.length);
     return Scaffold(
-      appBar: AppBar(title: const Text('الفهرس الموضوعي')),
+      appBar: AppBar(title: Text(widget.fatawa ? 'الفتاوى بالأسئلة' : 'الفهرس الموضوعي')),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
@@ -570,7 +685,7 @@ class _TopicIndexScreenState extends State<TopicIndexScreen> {
             textInputAction: TextInputAction.search,
             onSubmitted: _search,
             decoration: InputDecoration(
-              hintText: 'موضوع: الصبر، التوحيد، صلاة الاستسقاء…',
+              hintText: widget.fatawa ? 'ابحث في أسئلة الفتاوى: زكاة الدين، سجود السهو…' : 'موضوع: الصبر، التوحيد، صلاة الاستسقاء…',
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: C.card(context),
@@ -614,7 +729,10 @@ class _TopicIndexScreenState extends State<TopicIndexScreen> {
         Expanded(
           child: _q.isEmpty
               ? ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 30), children: [
-                  Text('يجمع لك الأبواب التي في عنوانها الموضوع، من فهارس الكتب المضافة إلى المكتبة. أول بحث يأخذ وقتًا لقراءة الفهارس، وما بعده أسرع.',
+                  Text(
+                      widget.fatawa
+                          ? 'يبحث في عناوين الأسئلة وحدها من كتب الفتاوى واللقاءات، لا في نص الأجوبة. وتحت المقترحات كتب الفتاوى لتتصفّحها بأبوابها.'
+                          : 'يجمع لك الأبواب التي في عنوانها الموضوع، من فهارس الكتب المضافة إلى المكتبة. أول بحث يأخذ وقتًا لقراءة الفهارس، وما بعده أسرع.',
                       style: TextStyle(fontSize: 14, height: 1.8, color: C.muted(context))),
                   const SizedBox(height: 12),
                   Wrap(spacing: 8, runSpacing: 8, children: [
@@ -627,6 +745,10 @@ class _TopicIndexScreenState extends State<TopicIndexScreen> {
                         },
                       ),
                   ]),
+                  if (widget.fatawa) ...[
+                    const SizedBox(height: 16),
+                    for (final b in Catalog.byId.values.where(isFatawa).toList()..sort((a, b) => a.shortName.compareTo(b.shortName))) BookTile(b),
+                  ],
                 ])
               : !_busy && _found.isEmpty
                   ? EmptyNote(Icons.search_off_rounded, 'لا باب في عنوانه «$_q» في فهارس هذه الكتب.')

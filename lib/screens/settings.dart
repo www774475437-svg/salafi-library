@@ -231,7 +231,7 @@ class ToolsScreen extends StatefulWidget {
 }
 
 class _ToolsScreenState extends State<ToolsScreen> {
-  static const all = ['انسخ الآية', 'نسخ', 'نسخ بالمصدر', 'اقتباس', 'اقتبس المظلّل', 'مشاركة', 'مشاركة صورة', 'ملاحظة', 'المعجم'];
+  static const all = ['انسخ الآية', 'نسخ', 'نسخ بالمصدر', 'اقتباس', 'اقتبس المظلّل', 'مشاركة', 'مشاركة صورة', 'ملاحظة', 'المعجم', 'أصل النقل'];
   late final List<String> order = [...Store.i.toolOrder.where(all.contains), ...all.where((t) => !Store.i.toolOrder.contains(t))];
   late final Set<String> hidden = {...Store.i.hiddenTools};
 

@@ -10,7 +10,8 @@ import '../ui.dart';
 import 'reader.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final String initial; // searched for at once when given
+  const SearchScreen({super.key, this.initial = ''});
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
@@ -30,6 +31,15 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _exact = false; // only results that hold the phrase as written
   String _without = ''; // results holding this word are left out
   final Set<int> _open = {}; // books whose results are all shown
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initial.isNotEmpty) {
+      _ctl.text = widget.initial;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+    }
+  }
 
   List<Scholar> get _chosen => _scholar < 0 ? Catalog.scholars.where((s) => s.authorId > 0).toList() : [Catalog.scholars[_scholar]];
 
