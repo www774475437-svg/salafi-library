@@ -100,6 +100,11 @@ class Store extends ChangeNotifier {
   /// What was searched for, newest first; the pinned ones stay.
   final List<String> searches = [];
   final Set<String> pinnedSearches = {};
+  /// The books kept open, to move between them from the reader.
+  final List<int> openBooks = [];
+  /// The reader's selection bar: the buttons hidden, and the order of the rest (by their names).
+  final Set<String> hiddenTools = {};
+  final List<String> toolOrder = [];
   /// Plans to finish a book: book → [start (ms), days].
   final Map<int, List<int>> plans = {};
   /// Research notebooks: title → entries {k: 'q' quote | 't' own writing, x: text, s: source, b: book, p: page}.
@@ -156,6 +161,9 @@ class Store extends ChangeNotifier {
       });
       recent.addAll((jsonDecode(p.getString('recent') ?? '[]') as List).map((e) => (e as num).toInt()));
       searches.addAll(p.getStringList('searches') ?? const []);
+      openBooks.addAll((p.getStringList('openBooks') ?? const []).map(int.parse));
+      hiddenTools.addAll(p.getStringList('hiddenTools') ?? const []);
+      toolOrder.addAll(p.getStringList('toolOrder') ?? const []);
       (jsonDecode(p.getString('plans') ?? '{}') as Map<String, dynamic>).forEach((k, v) => plans[int.parse(k)] = (v as List).map((e) => (e as num).toInt()).toList());
       (jsonDecode(p.getString('notebooks') ?? '{}') as Map<String, dynamic>).forEach((k, v) => notebooks[k] = (v as List).map((e) => Map<String, dynamic>.from(e as Map)).toList());
       pinnedSearches.addAll(p.getStringList('pinnedSearches') ?? const []);
@@ -216,6 +224,9 @@ class Store extends ChangeNotifier {
     p.setString('pagesRead', jsonEncode(pagesRead.map((k, v) => MapEntry('$k', v.toList()))));
     p.setString('recent', jsonEncode(recent));
     p.setStringList('searches', searches);
+    p.setStringList('openBooks', [for (final b in openBooks) '$b']);
+    p.setStringList('hiddenTools', hiddenTools.toList());
+    p.setStringList('toolOrder', toolOrder);
     p.setString('plans', jsonEncode(plans.map((k, v) => MapEntry('$k', v))));
     p.setString('notebooks', jsonEncode(notebooks));
     p.setStringList('pinnedSearches', pinnedSearches.toList());
@@ -318,6 +329,21 @@ class Store extends ChangeNotifier {
     changed();
   }
 
+  void closeBook(int book) {
+    openBooks.remove(book);
+    changed();
+  }
+
+  void setTools(List<String> order, Set<String> hidden) {
+    toolOrder
+      ..clear()
+      ..addAll(order);
+    hiddenTools
+      ..clear()
+      ..addAll(hidden);
+    changed();
+  }
+
   void setPlan(int book, int days) {
     final t = DateTime.now();
     plans[book] = [DateTime(t.year, t.month, t.day).millisecondsSinceEpoch, days];
@@ -392,6 +418,10 @@ class Store extends ChangeNotifier {
   void readAt(int book, int pg) {
     countPage();
     logEvent('open', book, pg);
+    if (!openBooks.contains(book)) {
+      openBooks.insert(0, book);
+      if (openBooks.length > 8) openBooks.removeLast();
+    }
     lastReadAt = DateTime.now().millisecondsSinceEpoch;
     lastPg[book] = pg;
     recent.remove(book);
@@ -593,6 +623,11 @@ class Store extends ChangeNotifier {
         'notes': notes.map((e) => e.toJson()).toList(),
         'colors': [for (final c in colors) {'v': c.value, 'n': c.name}],
         'review': review,
+        'plans': plans.map((k, v) => MapEntry('$k', v)),
+        'notebooks': notebooks,
+        'searches': searches,
+        'pinnedSearches': pinnedSearches.toList(),
+        'shelves': shelves,
       });
 
   /// Adds a copy made by [backup] (nothing already here is removed).
@@ -634,6 +669,13 @@ class Store extends ChangeNotifier {
       final b = (r as num).toInt();
       if (!recent.contains(b)) recent.add(b);
     }
+    (j['plans'] as Map<String, dynamic>? ?? {}).forEach((k, v) => plans.putIfAbsent(int.parse(k), () => (v as List).map((e) => (e as num).toInt()).toList()));
+    (j['notebooks'] as Map<String, dynamic>? ?? {}).forEach((k, v) => notebooks.putIfAbsent(k, () => (v as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()));
+    for (final q in (j['searches'] as List? ?? const [])) {
+      if (!searches.contains('$q')) searches.add('$q');
+    }
+    pinnedSearches.addAll((j['pinnedSearches'] as List? ?? const []).map((e) => '$e'));
+    (j['shelves'] as Map<String, dynamic>? ?? {}).forEach((k, v) => shelves.putIfAbsent(k, () => (v as List).map((e) => (e as num).toInt()).toList()));
     changed();
     return n;
   }

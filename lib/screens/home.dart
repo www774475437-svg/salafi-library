@@ -136,6 +136,11 @@ class HomeScreen extends StatelessWidget {
                   tile(Icons.forum_outlined, 'فوائد القرّاء', 'ما ينشره القرّاء من اقتباساتهم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReadersFawaidScreen()))),
                   tile(Icons.autorenew_rounded, 'احفظ وراجِع', Store.i.dueReviews().isEmpty ? 'مراجعة ما حفظته في أوقات متباعدة' : 'لديك ${Ar.num(Store.i.dueReviews().length)} للمراجعة الآن', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewScreen()))),
                   tile(Icons.school_outlined, 'منهج طالب العلم', 'كتب مرتّبة بالتدرّج', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MinhajScreen()))),
+                  tile(Icons.account_tree_outlined, 'الفهرس الموضوعي', 'أبواب الموضوع الواحد من كل الكتب', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopicIndexScreen()))),
+                  tile(Icons.record_voice_over_outlined, 'تسميع المتون', 'أخفِ الكلمات وسمّع ثم تحقّق', () async {
+                    final b = await pickBook(context);
+                    if (b != null && context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => MemorizeScreen(b)));
+                  }),
                   tile(Icons.flag_outlined, 'خطة ختم كتاب', 'ورد يومي ومتابعة حتى الختم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()))),
                   tile(Icons.edit_note_rounded, 'دفتر البحث', 'اجمع اقتباساتك في بحث واحد', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotebooksScreen()))),
                   tile(Icons.category_outlined, 'المكتبة حسب العلم', 'عقيدة وفقه وحديث وتفسير…', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SciencesScreen()))),

@@ -70,6 +70,12 @@ class SettingsScreen extends StatelessWidget {
                   value: st.keepOn,
                   onChanged: (v) => st.setSettings(keepOn: v),
                 ),
+              ListTile(
+                leading: const _Ico(Icons.tune_rounded),
+                title: const Text('أزرار شريط التحديد'),
+                subtitle: const Text('اختر ما يظهر منها ورتّبها بالسحب'),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ToolsScreen())),
+              ),
               if (!kIsWeb)
                 ListTile(
                   leading: const _Ico(Icons.bedtime_outlined),
@@ -214,6 +220,54 @@ class SettingsScreen extends StatelessWidget {
     } catch (_) {
       toast(context, 'النص غير صحيح');
     }
+  }
+}
+
+/// The buttons of the reader's selection bar: shown or hidden, and their order.
+class ToolsScreen extends StatefulWidget {
+  const ToolsScreen({super.key});
+  @override
+  State<ToolsScreen> createState() => _ToolsScreenState();
+}
+
+class _ToolsScreenState extends State<ToolsScreen> {
+  static const all = ['انسخ الآية', 'نسخ', 'نسخ بالمصدر', 'اقتباس', 'اقتبس المظلّل', 'مشاركة', 'مشاركة صورة', 'ملاحظة', 'المعجم'];
+  late final List<String> order = [...Store.i.toolOrder.where(all.contains), ...all.where((t) => !Store.i.toolOrder.contains(t))];
+  late final Set<String> hidden = {...Store.i.hiddenTools};
+
+  void _save() => Store.i.setTools(order, hidden);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('أزرار شريط التحديد')),
+      body: ReorderableListView(
+        padding: const EdgeInsets.only(bottom: 30),
+        header: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+          child: Text('هذه الأزرار تظهر حين تحدّد نصًّا في القراءة. أطفئ ما لا تستعمله، واسحب لتغيير الترتيب. الألوان والإغلاق ثابتان.',
+              style: TextStyle(fontSize: 13.5, height: 1.7, color: C.muted(context))),
+        ),
+        onReorder: (a, b) => setState(() {
+          if (b > a) b--;
+          order.insert(b, order.removeAt(a));
+          _save();
+        }),
+        children: [
+          for (final t in order)
+            SwitchListTile(
+              key: ValueKey(t),
+              secondary: const Icon(Icons.drag_handle_rounded),
+              title: Text(t),
+              value: !hidden.contains(t),
+              onChanged: (v) => setState(() {
+                v ? hidden.remove(t) : hidden.add(t);
+                _save();
+              }),
+            ),
+        ],
+      ),
+    );
   }
 }
 

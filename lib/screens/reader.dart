@@ -322,6 +322,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'search', child: ListTile(leading: Icon(Icons.search_rounded), title: Text('ابحث في الكتاب'))),
                   const PopupMenuItem(value: 'goto', child: ListTile(leading: Icon(Icons.numbers_rounded), title: Text('انتقل إلى صفحة'))),
+                  const PopupMenuItem(value: 'tabs', child: ListTile(leading: Icon(Icons.tab_rounded), title: Text('الكتب المفتوحة'))),
                   const PopupMenuItem(value: 'pagenote', child: ListTile(leading: Icon(Icons.sticky_note_2_outlined), title: Text('ملاحظة على الصفحة'))),
                   if (index != null && index!.pdfs.isNotEmpty)
                     const PopupMenuItem(value: 'pdf', child: ListTile(leading: Icon(Icons.picture_as_pdf_rounded), title: Text('النسخة المصوّرة PDF'))),
@@ -436,19 +437,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final lab = label(selPg);
     final text = selText;
     final under = _under;
-    Widget item(Widget top, String name, VoidCallback tap) => InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: tap,
-          child: SizedBox(
-            width: 62,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              SizedBox(height: 34, child: Center(child: top)),
-              const SizedBox(height: 3),
-              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 10.5, color: ink.withValues(alpha: 0.75))),
-            ]),
-          ),
-        );
+    final names = Map<Widget, String>.identity();
+    Widget item(Widget top, String name, VoidCallback tap) {
+      final w = InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: tap,
+        child: SizedBox(
+          width: 62,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(height: 34, child: Center(child: top)),
+            const SizedBox(height: 3),
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 10.5, color: ink.withValues(alpha: 0.75))),
+          ]),
+        ),
+      );
+      names[w] = name;
+      return w;
+    }
+
+    // the reader's own choice from the settings: which buttons show, and in what order
+    List<Widget> arranged(List<Widget> tools) {
+      int rank(Widget w) {
+        final i = st.toolOrder.indexOf(names[w] ?? '');
+        return i < 0 ? 999 : i;
+      }
+
+      final out = [for (final w in tools) if (!st.hiddenTools.contains(names[w])) w];
+      if (st.toolOrder.isNotEmpty) {
+        final at = {for (var i = 0; i < out.length; i++) out[i]: i};
+        out.sort((a, b) => rank(a) != rank(b) ? rank(a).compareTo(rank(b)) : at[a]!.compareTo(at[b]!));
+      }
+      return out;
+    }
+
     Widget ico(IconData i) => Container(
           width: 34,
           height: 34,
@@ -481,6 +503,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 clearSel();
               }),
             sep(),
+            ...arranged([
             if (text.contains('﴿'))
               item(ico(Icons.auto_stories_outlined), 'انسخ الآية', () {
                 // the ayah with its marks and number: text between ﴿ and ﴾
@@ -521,10 +544,47 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 () => showQuoteImage(context, text: text, scholar: b.scholar.collection ? '' : '${b.scholar.name} ${b.scholar.honorific}', source: '${b.shortName} (صـ $src)')),
             item(ico(Icons.sticky_note_2_outlined), 'ملاحظة', () => _addNote(text, lab)),
             item(ico(Icons.translate_rounded), 'المعجم', () => openDict(context, text)),
+            ]),
             sep(),
             item(ico(Icons.close_rounded), 'إغلاق', clearSel),
           ]),
         ),
+      ),
+    );
+  }
+
+  /// The books kept open: tap one to move to it where it was left.
+  void _showOpenBooks() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => ListenableBuilder(
+        listenable: Store.i,
+        builder: (c, _) {
+          final books = [for (final id in Store.i.openBooks) if (Catalog.byId[id] != null) Catalog.byId[id]!];
+          return SafeArea(
+            child: ListView(shrinkWrap: true, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text('الكتب المفتوحة', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: C.ink(c))),
+              ),
+              for (final x in books)
+                ListTile(
+                  selected: x.id == b.id,
+                  leading: const Icon(Icons.menu_book_rounded),
+                  title: Text(x.shortName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(x.id == b.id ? 'تقرؤه الآن' : 'عند صفحة ${Ar.num(Store.i.lastPg[x.id] ?? 1)}'),
+                  trailing: x.id == b.id ? null : IconButton(tooltip: 'أغلقه', icon: const Icon(Icons.close_rounded), onPressed: () => Store.i.closeBook(x.id)),
+                  onTap: x.id == b.id
+                      ? null
+                      : () {
+                          Navigator.pop(c);
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ReaderScreen(x, Store.i.lastPg[x.id] ?? 1)));
+                        },
+                ),
+            ]),
+          );
+        },
       ),
     );
   }
@@ -609,6 +669,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _askPage();
       case 'pagenote':
         _addPageNote();
+      case 'tabs':
+        _showOpenBooks();
       case 'look':
         showReadingLook(context);
       case 'download':

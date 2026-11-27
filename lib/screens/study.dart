@@ -3,6 +3,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../catalog.dart';
 import '../store.dart';
+import '../text.dart';
+import '../turath.dart';
 import '../ui.dart';
 import 'reader.dart';
 import 'scholar.dart' show BookTile;
@@ -385,6 +387,275 @@ class NotebookScreen extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+}
+
+/// «تسميع المتون»: a page of a book with its words hidden; the reader recites, then uncovers to check.
+class MemorizeScreen extends StatefulWidget {
+  final BookInfo book;
+  const MemorizeScreen(this.book, {super.key});
+  @override
+  State<MemorizeScreen> createState() => _MemorizeScreenState();
+}
+
+class _MemorizeScreenState extends State<MemorizeScreen> {
+  late int pg = (Store.i.lastPg[widget.book.id] ?? 1).clamp(1, widget.book.pages);
+  int mode = 0; // 0: the start of each line stays, 1: every other word, 2: all hidden
+  final Set<int> shown = {}; // the lines uncovered
+  Future<List<String>>? lines;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    shown.clear();
+    lines = Turath.page(widget.book.id, pg).then((r) => cleanPage(r.text).body.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList());
+  }
+
+  void _go(int p) => setState(() {
+        pg = p.clamp(1, widget.book.pages);
+        _load();
+      });
+
+  /// A line with some of its words covered.
+  String _covered(String line) {
+    final words = line.split(' ');
+    String dots(String w) => '⋯' * (w.length < 3 ? 1 : 2);
+    return [
+      for (var i = 0; i < words.length; i++)
+        switch (mode) {
+          0 => i < 2 ? words[i] : dots(words[i]),
+          1 => i.isEven ? words[i] : dots(words[i]),
+          _ => dots(words[i]),
+        }
+    ].join(' ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('تسميع: ${widget.book.shortName}', maxLines: 1, overflow: TextOverflow.ellipsis)),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Row(children: [
+            IconButton(tooltip: 'الصفحة السابقة', icon: const Icon(Icons.chevron_right_rounded), onPressed: pg > 1 ? () => _go(pg - 1) : null),
+            Expanded(child: Text('صفحة ${Ar.num(pg)} من ${Ar.num(widget.book.pages)}', textAlign: TextAlign.center, style: TextStyle(color: C.muted(context)))),
+            IconButton(tooltip: 'الصفحة التالية', icon: const Icon(Icons.chevron_left_rounded), onPressed: pg < widget.book.pages ? () => _go(pg + 1) : null),
+          ]),
+        ),
+      ),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 0, label: Text('أول السطر')),
+              ButtonSegment(value: 1, label: Text('كلمة وكلمة')),
+              ButtonSegment(value: 2, label: Text('الكل مخفي')),
+            ],
+            selected: {mode},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() {
+              mode = s.first;
+              shown.clear();
+            }),
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<String>>(
+            future: lines,
+            builder: (context, snap) {
+              if (snap.hasError) return const EmptyNote(Icons.wifi_off_rounded, 'تعذّر فتح الصفحة. حمّل الكتاب ليعمل التسميع بلا إنترنت.');
+              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+              final ls = snap.data!;
+              if (ls.isEmpty) return const EmptyNote(Icons.notes_rounded, 'هذه الصفحة فارغة.');
+              return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 20), children: [
+                Row(children: [
+                  Expanded(child: Text('سمّع السطر ثم اضغطه لتتحقق.', style: TextStyle(fontSize: 13, color: C.muted(context)))),
+                  TextButton(
+                    onPressed: () => setState(() => shown.length == ls.length ? shown.clear() : shown.addAll([for (var i = 0; i < ls.length; i++) i])),
+                    child: Text(shown.length == ls.length ? 'أخفِ الكل' : 'اكشف الكل'),
+                  ),
+                ]),
+                for (var i = 0; i < ls.length; i++)
+                  InkWell(
+                    onTap: () => setState(() => shown.contains(i) ? shown.remove(i) : shown.add(i)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Text(
+                        shown.contains(i) ? ls[i] : _covered(ls[i]),
+                        style: TextStyle(fontFamily: bookFont, fontSize: 20, height: 1.9, color: shown.contains(i) ? C.ink(context) : C.muted(context)),
+                      ),
+                    ),
+                  ),
+              ]);
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// «الفهرس الموضوعي»: the chapters about one subject, gathered from the tables of contents of the books.
+class TopicIndexScreen extends StatefulWidget {
+  const TopicIndexScreen({super.key});
+  @override
+  State<TopicIndexScreen> createState() => _TopicIndexScreenState();
+}
+
+class _TopicIndexScreenState extends State<TopicIndexScreen> {
+  static const suggested = ['التوحيد', 'الإخلاص', 'الصبر', 'التوبة', 'الدعاء', 'العلم', 'الصلاة', 'الزكاة', 'الصيام', 'الحج', 'بر الوالدين', 'الذكر'];
+  final _ctl = TextEditingController();
+  int _scholar = -1;
+  String _q = '';
+  bool _busy = false;
+  int _run = 0, _done = 0, _all = 0, _failed = 0;
+  final Map<BookInfo, List<Heading>> _found = {};
+
+  Future<void> _search(String q) async {
+    q = q.trim();
+    if (q.length < 2) return;
+    FocusScope.of(context).unfocus();
+    final id = ++_run;
+    final nq = norm(q);
+    final books = Catalog.byId.values
+        .where((b) => b.pages > 0 && (_scholar < 0 || b.scholar == Catalog.scholars[_scholar]) && (Turath.hosted.contains(b.id) || Store.i.downloaded.contains(b.id)))
+        .toList();
+    setState(() {
+      _q = q;
+      _busy = true;
+      _found.clear();
+      _done = 0;
+      _failed = 0;
+      _all = books.length;
+    });
+    // a few tables of contents at a time; each is kept after its first reading
+    var next = 0;
+    Future<void> worker() async {
+      while (next < books.length && id == _run) {
+        final b = books[next++];
+        try {
+          final idx = await Turath.index(b.id);
+          final hs = idx.headings.where((h) => norm(h.title).contains(nq)).toList();
+          if (id != _run) return;
+          if (hs.isNotEmpty) _found[b] = hs;
+        } catch (_) {
+          _failed++;
+        }
+        if (id != _run || !mounted) return;
+        setState(() => _done++);
+      }
+    }
+
+    await Future.wait([for (var i = 0; i < 6; i++) worker()]);
+    if (mounted && id == _run) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _found.values.fold(0, (a, l) => a + l.length);
+    return Scaffold(
+      appBar: AppBar(title: const Text('الفهرس الموضوعي')),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          child: TextField(
+            controller: _ctl,
+            textInputAction: TextInputAction.search,
+            onSubmitted: _search,
+            decoration: InputDecoration(
+              hintText: 'موضوع: الصبر، التوحيد، صلاة الاستسقاء…',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: C.card(context),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: C.line(context))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: C.line(context))),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 46,
+          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5), children: [
+            for (var i = -1; i < Catalog.scholars.length; i++)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text(i < 0 ? 'كل الكتب' : Catalog.scholars[i].short),
+                  selected: _scholar == i,
+                  showCheckmark: false,
+                  onSelected: (_) {
+                    setState(() => _scholar = i);
+                    if (_q.isNotEmpty) _search(_q);
+                  },
+                ),
+              ),
+          ]),
+        ),
+        if (_busy || _q.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (_busy) LinearProgressIndicator(value: _all == 0 ? null : _done / _all),
+              const SizedBox(height: 4),
+              Text(
+                _busy
+                    ? 'يقرأ فهارس الكتب: ${Ar.num(_done)} من ${Ar.num(_all)} · وُجد ${Ar.num(total)} بابًا'
+                    : '${Ar.num(total)} بابًا في ${Ar.books(_found.length)}${_failed > 0 ? ' · تعذّر فتح فهارس ${Ar.books(_failed)}' : ''}',
+                style: TextStyle(fontSize: 13, color: C.muted(context)),
+              ),
+            ]),
+          ),
+        Expanded(
+          child: _q.isEmpty
+              ? ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 30), children: [
+                  Text('يجمع لك الأبواب التي في عنوانها الموضوع، من فهارس الكتب المضافة إلى المكتبة. أول بحث يأخذ وقتًا لقراءة الفهارس، وما بعده أسرع.',
+                      style: TextStyle(fontSize: 14, height: 1.8, color: C.muted(context))),
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final t in suggested)
+                      ActionChip(
+                        label: Text(t),
+                        onPressed: () {
+                          _ctl.text = t;
+                          _search(t);
+                        },
+                      ),
+                  ]),
+                ])
+              : !_busy && _found.isEmpty
+                  ? EmptyNote(Icons.search_off_rounded, 'لا باب في عنوانه «$_q» في فهارس هذه الكتب.')
+                  : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 40), children: [
+                      for (final e in _found.entries) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12, bottom: 4),
+                          child: Row(children: [
+                            Expanded(
+                              child: Text('${e.key.shortName} · ${e.key.scholar.short}',
+                                  maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: C.ink(context))),
+                            ),
+                            Text(Ar.num(e.value.length), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: C.accent(context))),
+                          ]),
+                        ),
+                        for (final h in e.value.take(12))
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(h.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: bookFont, fontSize: 16.5, height: 1.5)),
+                            trailing: Icon(Icons.chevron_left_rounded, color: C.muted(context)),
+                            onTap: () => openReader(context, e.key, h.pg),
+                          ),
+                        if (e.value.length > 12)
+                          Text('و${Ar.num(e.value.length - 12)} بابًا آخر في فهرس الكتاب', style: TextStyle(fontSize: 12.5, color: C.muted(context))),
+                      ],
+                    ]),
+        ),
+      ]),
     );
   }
 }
